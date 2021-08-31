@@ -1,56 +1,82 @@
 $(function () {
-    payment_form = $('form').attr('id');
-    setDefaultsForAll();
+   payment_form = $('form').attr('id');
+   setDefaultsForAll();
 });
 
 
 function setDefaultsForAll() {
-         if (payment_form === "payment_confirmation"){
+   if (payment_form === "payment_confirmation") {
       setDefaultsForUnsignedDetailsSection();
    }
    else {
       setDefaultsForPaymentDetailsSection();
-   } 
+   }
 }
 
-function setDefaultsForUnsignedDetailsSection()
-{
-//alert(window.location.search);
-var URLparams = window.location.search;
-var paramsPair = URLparams.split('&');
-var appendHTML = "";
-var inputFields = "";
-//alert(params.length);
-for (let i = 0; i < paramsPair.length; i++) {
-    var params = paramsPair[i].split('=');
-    var keyID = params[0].replace("?","");
-    var keyValue = decodeURIComponent(params[1]);
-    keyValue = keyValue.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    //appendHTML = appendHTML + '<span class="fieldName">' + keyID + '</span><span class="fieldValue">' + keyValue + '</span>' + '<br>';
-    appendHTML = appendHTML + '<span class="fieldName">' + keyID + '</span><span class="fieldValue">' + keyValue + '</span>' + '<br>';
-    inputFields = inputFields + '<input type="hidden" id="' + keyID + '" name="' + keyID + '" value="' + keyValue + '" />';
+
+async function downloadFile() {
+   let response = await fetch("./keyStore.txt");
+
+   if (response.status != 200) {
+      throw new Error("Server Error");
+   }
+
+   // read response stream as text
+   let text_data = await response.text();
+
+   return text_data;
 }
-//alert(appendHTML);
-$("#reviewParams").html(appendHTML);
-//alert(inputFields);
-$("#signature").before(inputFields);
 
-var signedFlds = $("#signed_field_names").val().split(',');
-var messageStr = "";
-
-for (let i = 0; i < signedFlds.length; i++) {
-   if (i == 0)
-      messageStr = signedFlds[i] + '=' + $("#" + signedFlds[i]).val();
-   else
-      messageStr = messageStr + ',' + signedFlds[i] + '=' + $("#" + signedFlds[i]).val();
+var secretStr;
+async function getKeyString() {
+   try {
+      let secretStr = await downloadFile();
+   }
+   catch (e) {
+      alert(e.message);
+   }
 }
-//alert(messageStr);
 
-var secretStr = "9d06fcb631e74ad2a45ebd88fa53c0563f06015a246849429c777b0027e16998ebaf5e40d9d64379a4ea1b901845653c2e2b05fea9ff4af58a0ce43526609c8a4bed30bbd90a48a4b90883f3431c41d3036a7848a4ce4aa2b153a9c9fd539ae2e52700a9c6594afb9d25814b2d7f09974ddd7429bdbb48a981ccc35540cd92b4";
+getKeyString();
 
-var hash = CryptoJS.HmacSHA256(messageStr, secretStr);
-var hashInBase64 = CryptoJS.enc.Base64.stringify(hash);
-//document.write(hashInBase64);
+function setDefaultsForUnsignedDetailsSection() {
+   //alert(window.location.search);
+   var URLparams = window.location.search;
+   var paramsPair = URLparams.split('&');
+   var appendHTML = "";
+   var inputFields = "";
+   //alert(params.length);
+   for (let i = 0; i < paramsPair.length; i++) {
+      var params = paramsPair[i].split('=');
+      var keyID = params[0].replace("?", "");
+      var keyValue = decodeURIComponent(params[1]);
+      keyValue = keyValue.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      //appendHTML = appendHTML + '<span class="fieldName">' + keyID + '</span><span class="fieldValue">' + keyValue + '</span>' + '<br>';
+      appendHTML = appendHTML + '<span class="fieldName">' + keyID + '</span><span class="fieldValue">' + keyValue + '</span>' + '<br>';
+      inputFields = inputFields + '<input type="hidden" id="' + keyID + '" name="' + keyID + '" value="' + keyValue + '" />';
+   }
+   //alert(appendHTML);
+   $("#reviewParams").html(appendHTML);
+   //alert(inputFields);
+   $("#signature").before(inputFields);
 
-$("#signature").val(hashInBase64);
+   var signedFlds = $("#signed_field_names").val().split(',');
+   var messageStr = "";
+
+   for (let i = 0; i < signedFlds.length; i++) {
+      if (i == 0)
+         messageStr = signedFlds[i] + '=' + $("#" + signedFlds[i]).val();
+      else
+         messageStr = messageStr + ',' + signedFlds[i] + '=' + $("#" + signedFlds[i]).val();
+   }
+   alert(messageStr);
+
+   //var secretStr = "9d06fcb631e74ad2a45ebd88fa53c0563f06015a246849429c777b0027e16998ebaf5e40d9d64379a4ea1b901845653c2e2b05fea9ff4af58a0ce43526609c8a4bed30bbd90a48a4b90883f3431c41d3036a7848a4ce4aa2b153a9c9fd539ae2e52700a9c6594afb9d25814b2d7f09974ddd7429bdbb48a981ccc35540cd92b4";
+   alert(secretStr);
+
+   var hash = CryptoJS.HmacSHA256(messageStr, secretStr);
+   var hashInBase64 = CryptoJS.enc.Base64.stringify(hash);
+   //document.write(hashInBase64);
+
+   $("#signature").val(hashInBase64);
 }
