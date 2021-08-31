@@ -44,7 +44,7 @@ for (let i = 0; i < signedFlds.length; i++) {
    else
       messageStr = messageStr + ',' + signedFlds[i] + '=' + $("#" + signedFlds[i]).val();
 }
-alert(messageStr);
+//alert(messageStr);
 
 var secretStr = "9d06fcb631e74ad2a45ebd88fa53c0563f06015a246849429c777b0027e16998ebaf5e40d9d64379a4ea1b901845653c2e2b05fea9ff4af58a0ce43526609c8a4bed30bbd90a48a4b90883f3431c41d3036a7848a4ce4aa2b153a9c9fd539ae2e52700a9c6594afb9d25814b2d7f09974ddd7429bdbb48a981ccc35540cd92b4";
 
