@@ -6,38 +6,15 @@ $(function () {
 
 function setDefaultsForAll() {
    if (payment_form === "payment_confirmation") {
-      setDefaultsForUnsignedDetailsSection();
+      //setDefaultsForUnsignedDetailsSection();
+      getSecretKey();
    }
    else {
       setDefaultsForPaymentDetailsSection();
    }
 }
 
-
-async function downloadFile() {
-   let response = await fetch("./keyStore.txt");
-
-   if (response.status != 200) {
-      throw new Error("Server Error");
-   }
-
-   // read response stream as text
-   let text_data = await response.text();
-
-   return text_data;
-}
-
 var secretStr;
-async function getKeyString() {
-   try {
-      let secretStr = await downloadFile();
-   }
-   catch (e) {
-      alert(e.message);
-   }
-}
-
-getKeyString();
 
 function setDefaultsForUnsignedDetailsSection() {
    //alert(window.location.search);
@@ -69,14 +46,28 @@ function setDefaultsForUnsignedDetailsSection() {
       else
          messageStr = messageStr + ',' + signedFlds[i] + '=' + $("#" + signedFlds[i]).val();
    }
-   alert(messageStr);
+   //alert(messageStr);
 
-   //var secretStr = "9d06fcb631e74ad2a45ebd88fa53c0563f06015a246849429c777b0027e16998ebaf5e40d9d64379a4ea1b901845653c2e2b05fea9ff4af58a0ce43526609c8a4bed30bbd90a48a4b90883f3431c41d3036a7848a4ce4aa2b153a9c9fd539ae2e52700a9c6594afb9d25814b2d7f09974ddd7429bdbb48a981ccc35540cd92b4";
-   alert(secretStr);
+   //let secretStr = "9d06fcb631e74ad2a45ebd88fa53c0563f06015a246849429c777b0027e16998ebaf5e40d9d64379a4ea1b901845653c2e2b05fea9ff4af58a0ce43526609c8a4bed30bbd90a48a4b90883f3431c41d3036a7848a4ce4aa2b153a9c9fd539ae2e52700a9c6594afb9d25814b2d7f09974ddd7429bdbb48a981ccc35540cd92b4";
+   //alert(secretStr);
 
    var hash = CryptoJS.HmacSHA256(messageStr, secretStr);
    var hashInBase64 = CryptoJS.enc.Base64.stringify(hash);
    //document.write(hashInBase64);
 
    $("#signature").val(hashInBase64);
+}
+
+function getSecretKey() {
+   var xhttp = new XMLHttpRequest();
+   xhttp.onreadystatechange = function () {
+      if (this.readyState == 4 && this.status == 200) {
+         // Typical action to be performed when the document is ready:
+         secretStr = xhttp.responseText;
+         //alert(secretStr);
+         setDefaultsForUnsignedDetailsSection();
+      }
+   };
+   xhttp.open("GET", "https://k7atwork.github.io/payment_cybersource/keyStore.txt", true);
+   xhttp.send();
 }
