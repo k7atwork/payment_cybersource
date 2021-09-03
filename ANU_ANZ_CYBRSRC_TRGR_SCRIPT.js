@@ -12,7 +12,7 @@ function initValues() {
     $("input[name='amount']").val("100.00");
     $("input[name='currency']").val("AUD");
 
-    $("input[name='transaction_uuid']").val(UUIDGen());
+    //$("input[name='transaction_uuid']").val(UUIDGen());
     //$("input[name='signed_date_time']").val(new Date().toISOString().replace(/\:/g,''));
     $("input[name='signed_date_time']").val(new Date().toISOString().substring(0,19) + 'Z');
 }
