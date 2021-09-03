@@ -1,6 +1,6 @@
 $(function () {
-   var payment_form = $('#payment_confirmation').attr('id');
-   if (payment_form === "payment_confirmation") {
+   var payment_form = $('#payment_confirmation_iframe').attr('id');
+   if (payment_form === "payment_confirmation_iframe") {
       initValues();
       getSecretKey();
    }
