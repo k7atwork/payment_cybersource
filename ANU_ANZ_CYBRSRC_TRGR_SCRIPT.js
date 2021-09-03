@@ -9,10 +9,10 @@ $(function () {
 function initValues() {
     $("input[name='transaction_type']").val("authorization");
     $("input[name='reference_number']").val(new Date().getTime());
-    //$("input[name='amount']").val("100.00");
+    $("input[name='amount']").val("100.00");
     $("input[name='currency']").val("AUD");
 
-    //$("input[name='transaction_uuid']").val(UUIDGen());
+    $("input[name='transaction_uuid']").val(UUIDGen());
     //$("input[name='signed_date_time']").val(new Date().toISOString().replace(/\:/g,''));
     $("input[name='signed_date_time']").val(new Date().toISOString().substring(0,19) + 'Z');
 }
