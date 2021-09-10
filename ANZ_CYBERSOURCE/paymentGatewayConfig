@@ -1,0 +1,73 @@
+class paymentGatewayConfig
+   method paymentGatewayConfig();
+   
+   property string access_key;
+   property string profile_id;
+   property string secret_key;
+   
+   method getParameterValue(&inParamName As string) Returns string;
+   
+private
+   
+   instance array of array of string &connectorProp;
+   
+end-class;
+
+method paymentGatewayConfig
+   
+   /*--[ Fetch Details from Node Properties]--*/
+   Local array of array of string &keyValPairs = CreateArrayRept(CreateArrayRept("", 0), 0);
+   
+   Local SQL &sql = CreateSQL("SELECT PROPNAME, COMMENTS FROM PSNODEPROP WHERE MSGNODENAME = :1", Node.ANU_ANZ_PYMNT_GATEWAY);
+   
+   Local string &propName, &propValue;
+   
+   While &sql.Fetch(&propName, &propValue)
+      &keyValPairs.Push(CreateArray(&propName, &propValue));
+   End-While;
+   
+   Local number &i;
+   
+   For &i = 1 To &keyValPairs.Len
+      Evaluate &keyValPairs [&i][1]
+      When = "access_key"
+         &access_key = &keyValPairs [&i][2];
+         Break;
+      When = "profile_id"
+         &profile_id = &keyValPairs [&i][2];
+         Break;
+      When = "secret_key"
+         &secret_key = &keyValPairs [&i][2];
+         Break;
+      End-Evaluate;
+   End-For;
+   
+   /*--[ Fetch Details from Connector Properties]--*/
+   %This.connectorProp = CreateArrayRept(CreateArrayRept("", 0), 0);
+   
+   Local Message &requestMsg = CreateMessage(Operation.IB_GENERIC);
+   &requestMsg.IBInfo.IBConnectorInfo.ConnectorName = "ESHTTPTARGET";
+   Local boolean &BRtn = &requestMsg.IBInfo.LoadConnectorPropFromNode(Node.ANU_ANZ_PYMNT_GATEWAY);
+   
+   Local number &count = &requestMsg.IBInfo.IBConnectorInfo.GetNumberOfConnectorProperties();
+   
+   For &i = 1 To &count
+      %This.connectorProp.Push(CreateArray(&requestMsg.IBInfo.IBConnectorInfo.GetConnectorPropertiesName(&i), &requestMsg.IBInfo.IBConnectorInfo.GetConnectorPropertiesValue(&i)));
+   End-For;
+   
+end-method;
+
+
+method getParameterValue
+   /+ &inParamName as String +/
+   /+ Returns String +/
+   
+   Local number &pos = %This.connectorProp.Find(&inParamName);
+   
+   If &pos > 0 Then
+      Return %This.connectorProp [&pos][2];
+   End-If;
+   
+   Return "";
+   
+end-method;
