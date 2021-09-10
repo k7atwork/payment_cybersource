@@ -1,0 +1,161 @@
+class Utils
+   method prepareJSONfromArray(&inArray As array of array of string) Returns JsonObject;
+   method parseJSONfromString(&inJSONstring As string) Returns JsonObject;
+   
+   method getPropertyAsString(&JSON_Object As JsonObject, &propertyName As string) Returns string;
+   method getPropertyAsArray(&JSON_Object As JsonObject, &propertyName As string) Returns array of string;
+   
+   method print(&JSON_Object As JsonObject);
+   
+   method HmacSHA256_JAVA(&messageStr As string, &secretStr As string) Returns string;
+   
+end-class;
+
+method HmacSHA256_JAVA
+   /+ &messageStr as String, +/
+   /+ &secretStr as String +/
+   /+ Returns String +/
+   
+   Local string &returnStr;
+   
+   try
+      
+      /*--[ Derived Logic from PTSF_ES.ESIMPL.JsonService.OnExecute -- method hmacAuthenticationHeader ]--*/
+      
+      Local object &oByteStr = CreateJavaObject("java.lang.String", &secretStr);
+      Local object &signingKey = CreateJavaObject("javax.crypto.spec.SecretKeySpec", &oByteStr.getBytes("UTF8"), "HmacSHA256");
+      Local object &mac = GetJavaClass("javax.crypto.Mac").getInstance("HmacSHA256");
+      &mac.init(&signingKey);
+      
+      Local object &hmacbytes = &mac.doFinal(CreateJavaObject("java.lang.String", &messageStr).getBytes("UTF8"));
+      
+      Local object &oEncoder = CreateJavaObject("com.peoplesoft.tools.util.Base64");
+      Local string &authenc = &oEncoder.encode(&hmacbytes);
+      
+      &returnStr = &authenc;
+      
+   catch Exception &ex
+      Error &ex.ToString();
+   end-try;
+   
+   Return &returnStr;
+   
+end-method;
+
+
+method prepareJSONfromArray
+   /+ &inArray as Array2 of String +/
+   /+ Returns JsonObject +/
+   
+   Local JsonBuilder &jsonBuilder = CreateJsonBuilder();
+   Local number &i, &j, &z;
+   
+   If &jsonBuilder.StartObjectReturnsTrue("Request") Then
+      For &i = 1 To &inArray.Len
+         For &j = 2 To &inArray [&i].Len
+            If Find(",", &inArray [&i][&j]) = 0 Then
+               /*--[ Create Property ]--*/
+               &jsonBuilder.AddProperty(&inArray [&i][1], &inArray [&i][&j])
+            Else
+               /*--[ Create Array ]--*/
+               &jsonBuilder.StartArray(&inArray [&i][1]);
+               Local array of string &elements = Split(&inArray [&i][&j], ",");
+               For &z = 1 To &elements.Len
+                  &jsonBuilder.AddElement(&elements [&z]);
+               End-For;
+               &jsonBuilder.EndArray(&inArray [&i][1]);
+            End-If;
+         End-For;
+      End-For;
+      &jsonBuilder.EndObject("Request");
+   End-If;
+   
+   Return &jsonBuilder.GetRootNode().GetJsonObject();
+   
+end-method;
+
+
+method parseJSONfromString
+   /+ &inJSONstring as String +/
+   /+ Returns JsonObject +/
+   
+   Local JsonParser &parser = CreateJsonParser();
+   
+   Local boolean &bParseResult = &parser.Parse(&inJSONstring);
+   Local JsonObject &rootObj;
+   
+   If &bParseResult Then
+      &rootObj = &parser.GetRootObject();
+   End-If;
+   
+   Return &rootObj;
+   
+end-method;
+
+
+method getPropertyAsString
+   /+ &JSON_Object as JsonObject, +/
+   /+ &propertyName as String +/
+   /+ Returns String +/
+   
+   Local string &propertyValue;
+   
+   If &JSON_Object.IsJsonArray(&propertyName) Then
+      &propertyValue = &JSON_Object.GetJsonArray(&propertyName).ToString();
+   Else
+      &propertyValue = &JSON_Object.GetString(&propertyName);
+   End-If;
+   
+   Return &propertyValue;
+   
+end-method;
+
+
+method getPropertyAsArray
+   /+ &JSON_Object as JsonObject, +/
+   /+ &propertyName as String +/
+   /+ Returns Array of String +/
+   
+   Local array of string &returnArray = CreateArrayRept("", 0);
+   
+   If &JSON_Object.IsJsonArray(&propertyName) Then
+      
+      Local JsonArray &jsonArray = &JSON_Object.GetJsonArray(&propertyName);
+      
+      Local number &i;
+      
+      For &i = 1 To &jsonArray.Size
+         &returnArray.Push(&jsonArray.GetString(&i));
+      End-For;
+      
+   End-If;
+   
+   Return &returnArray;
+   
+end-method;
+
+
+method print
+   /+ &JSON_Object as JsonObject +/
+   
+   %Response.WriteLine(&JSON_Object.ToString());
+   %Response.WriteLine("<br/><br/>");
+   
+   Local number &i;
+   
+   For &i = 1 To &JSON_Object.ChildCount
+      
+      Local string &propertyName, &propertyValue;
+      &propertyName = &JSON_Object.GetPropertyNameAt(&i);
+      
+      If &JSON_Object.IsJsonArray(&propertyName) Then
+         &propertyValue = %This.getPropertyAsArray(&JSON_Object, &propertyName).Join(", ");
+      Else
+         &propertyValue = %This.getPropertyAsString(&JSON_Object, &propertyName);
+      End-If;
+      
+      %Response.WriteLine(&propertyName | " = " | &propertyValue);
+      %Response.WriteLine("<br/>");
+   End-For;
+   
+end-method;
