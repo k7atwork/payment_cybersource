@@ -1,0 +1,80 @@
+import ANU_ANZ_CYBERSOURCE:Utils;
+
+class parameterProcessor
+   method parameterProcessor();
+   method init();
+   
+protected
+   
+   property array of array of string parameterValues;
+   
+   property ANU_ANZ_CYBERSOURCE:Utils _Utils;
+   
+   method getParameterNames() Returns array of string;
+   method getParameterValue(&inParamName As string) Returns string;
+   
+   method setParameterValue(&inParamName As string, &inParamValue As string);
+   
+end-class;
+
+
+method parameterProcessor
+   
+   &_Utils = create ANU_ANZ_CYBERSOURCE:Utils();
+   
+   %This.parameterValues = CreateArrayRept(CreateArrayRept("", 0), 0);
+   
+   %This.init();
+   
+end-method;
+
+
+method init
+   
+   /* Extended/implemented in the extended class */
+   
+end-method;
+
+
+method getParameterNames
+   /+ Returns Array of String +/
+   
+   Local array of string &returnArray = CreateArrayRept("", 0);
+   
+   Local number &i;
+   
+   For &i = 1 To %This.parameterValues.Len
+      &returnArray.Push(%This.parameterValues [&i][1]);
+   End-For;
+   
+   Return &returnArray;
+   
+end-method;
+
+
+method getParameterValue
+   /+ &inParamName as String +/
+   /+ Returns String +/
+   
+   Local number &pos = %This.parameterValues.Find(&inParamName);
+   
+   If &pos > 0 Then
+      Return %This.parameterValues [&pos][2];
+   End-If;
+   
+   Return "";
+   
+end-method;
+
+
+method setParameterValue
+   /+ &inParamName as String, +/
+   /+ &inParamValue as String +/
+   
+   Local number &pos = %This.parameterValues.Find(&inParamName);
+   
+   If &pos > 0 Then
+      %This.parameterValues [&pos][2] = &inParamValue;
+   End-If;
+   
+end-method;
