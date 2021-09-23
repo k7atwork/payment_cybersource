@@ -1,0 +1,52 @@
+<html>
+
+<head>
+    <title>Secure Acceptance - Response Example</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="payment.css" />
+</head>
+
+<body>
+    <style>
+        input {display:block;}
+    </style>
+    <form target="_self" id="payment_form" action="https://dev2.esig.anu.edu.au:10101/PSIGW/RESTListeningConnector/CSDEVL/ANU_ANZ_PAYMENT_RESPONSE.v1/doResponse" method="POST" enctype="application/x-www-form-urlencoded">
+        <input name="utf8" value="?" />
+        <input name="req_card_number" value="xxxxxxxxxxxx1111" />
+        <input name="req_locale" value="en">
+        <input name="signature" value="LJy5hhv82LVkSYxlQnR2awo0JPAvMwUgeN/i08PV9KM" />
+        <input name="req_card_type_selection_indicator" value="1">
+        <input name="req_bill_to_surname" value="User">
+        <input name="req_bill_to_address_city" value="Canberra">
+        <input name="req_card_expiry_date" value="01-2023">
+        <input name="req_bill_to_address_postal_code" value="2601">
+        <input name="card_type_name" value="Visa">
+        <input name="reason_code" value="150">
+        <input name="req_bill_to_forename" value="ANU">
+        <input name="req_payment_method" value="card">
+        <input name="request_token" value="Axj77wSTVsy4yTb2J1ibAApP23FfTrQFP23FfTrQkFXmJ4gAaSZejFlo12AnJq2ZcZJt7E6xNgAAhxMV">
+        <input name="req_amount" value="7.55">
+        <input name="req_bill_to_email" value="f8459@anu.edu.au">
+        <input name="transaction_id" value="6323538235026013903003">
+        <input name="req_currency" value="AUD">
+        <input name="req_card_type" value="001">
+        <input name="decision" value="ERROR">
+        <input name="req_merchant_descriptor_city" value="Canberra">
+        <input name="message" value="The following property is either invalid or missing: merchant_city">
+        <input name="signed_field_names" value="transaction_id,signed_date_time,decision,req_access_key,req_profile_id,req_transaction_uuid,req_transaction_type,req_reference_number,req_amount,req_currency,req_locale,req_payment_method,req_bill_to_forename,req_bill_to_surname,req_bill_to_email,req_bill_to_address_line1,req_bill_to_address_city,req_bill_to_address_state,req_bill_to_address_country,req_bill_to_address_postal_code,req_card_number,req_card_type,req_card_type_selection_indicator,req_card_expiry_date,card_type_name,req_merchant_descriptor_city,message,reason_code,request_token,signed_field_names">
+        <input name="req_transaction_uuid" value="f00ec927-1bfd-11ec-8600-e7b497303528">
+        <input name="req_bill_to_address_country" value="AU">
+        <input name="req_transaction_type" value="sale">
+        <input name="req_access_key" value="9eb571ee4ba53da1adab4c1c6fd0cb98">
+        <input name="req_profile_id" value="77CAD533-602A-432A-A825-F89C5BD5F0F9">
+        <input name="req_reference_number" value="7119946-F-P14">
+        <input name="req_bill_to_address_state" value="ACT">
+        <input name="signed_date_time" value="2021-09-22T23:37:03Z">
+        <input name="req_bill_to_address_line1" value="Biology Place">
+        <input type="submit" id="submit" name="submit" value="Submit" />
+    </form>
+</body>
+
+</html>
