@@ -75,6 +75,10 @@ method setParameterValue
    
    If &pos > 0 Then
       %This.parameterValues [&pos][2] = &inParamValue;
+   Else
+      If All(&inParamName) Then
+         %This.parameterValues.Push(CreateArray(&inParamName, &inParamValue));
+      End-If;
    End-If;
    
 end-method;
