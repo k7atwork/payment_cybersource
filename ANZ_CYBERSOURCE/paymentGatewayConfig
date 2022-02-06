@@ -1,9 +1,19 @@
+/*--------------------[ ANU Customisations ]--------------------
+INC0394481, K7, 2021-09-09
+ - Initial Build
+---------------------------------------------------------------*/
+
 class paymentGatewayConfig
    method paymentGatewayConfig();
    
    property string access_key;
    property string profile_id;
    property string secret_key;
+   
+   property string merchant_id;
+   
+   property string key_id;
+   property string secret_key_base64;
    
    method getParameterValue(&inParamName As string) Returns string;
    
@@ -38,6 +48,15 @@ method paymentGatewayConfig
          Break;
       When = "secret_key"
          &secret_key = &keyValPairs [&i][2];
+         Break;
+      When = "key_id"
+         &key_id = &keyValPairs [&i][2];
+         Break;
+      When = "secret_key_base64"
+         &secret_key_base64 = &keyValPairs [&i][2];
+         Break;
+      When = "merchant_id"
+         &merchant_id = &keyValPairs [&i][2];
          Break;
       End-Evaluate;
    End-For;
