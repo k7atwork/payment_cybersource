@@ -1,0 +1,64 @@
+<html dir='%Direction' lang="%LanguageISO" class="">
+
+<head>
+    <title>Error</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+</head>
+
+<body>
+    <!-- Script to add Page title & to disable browser back/refresh -->
+    <script language="javascript">
+        history.replaceState(null, null, '%Bind(:3)'); 
+
+        window.addEventListener('load', function () {
+          var docTitle = document.getElementsByTagName("title")[0].innerHTML; 
+          document.getElementsByClassName("titletext")[0].innerHTML = docTitle;
+        });
+    </script>
+
+    <!-- Script to set domain -->
+    %Bind(:4)
+
+    <table border="0" width="100%" cellspacing="0" cellpadding="0">
+        <tr>
+            <td>
+                <div class="ptprtlcontainer">
+                    %Bind(:1)
+                </div>
+            </td>
+        </tr>
+    </table>
+    <br>
+    <table border="0" width="100%" cellspacing="0" cellpadding="0">
+        <tr>
+            <td id="ANU_TargetContent">
+                <Target Name="TargetContent">
+                    <div style='padding: 1% 1%;'>
+                        %Bind(:2)
+                    </div>
+
+                    <div style='padding: 5% 1%;'>
+                        <a href='%Bind(:3)' target='_top'>Click Here</a> to go back.
+                    </div>
+                </Target>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Style to hide Header Bar button / action list -->
+    <style>
+
+        #pthdr2search,
+        #pthdr2notify_div,
+        #pthdr2homeactionlist,
+        #pthdr2navbaractionlist,
+        #pthdr2actionlistsearch,
+        #pthdr2addtowidget_div {
+            display: none;
+        }
+
+    </style>
+
+</body>
+
+</html>
