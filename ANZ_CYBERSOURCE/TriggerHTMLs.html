@@ -1,0 +1,215 @@
+//===========================
+// ANU_ANZ_CYBRSRC_PYMNT_TRGR
+//===========================
+
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.6.0.js"></script>
+
+<form id="payment_confirmation" action="%Bind(:1)" method="post">
+<!------------------------------>
+<!-- Use to Debug Post Values -->
+<!------------------------------>
+<!--<form id="payment_confirmation" action="/psc/csdevl/EMPLOYEE/SA/s/WEBLIB_ANU.ANU_ANZ_CYBRSRC.FieldFormula.IScript_responseProcessor?postDataBin=y" method="post">-->
+%Bind(:2)
+</form>
+
+<span id='pymntTitle' style="display: none;">%Bind(:3)</span>
+
+<script type="text/javascript" src="%JavaScript(ANU_ANZ_CYBRSRC_TRGR_SCRIPT)"></script>
+
+
+//============================
+// ANU_ANZ_CYBRSRC_TRGR_SCRIPT
+//============================
+
+$(function () {
+    var payment_form = $('#payment_confirmation').attr('id');
+    if (payment_form === "payment_confirmation") {
+        initValues();
+    }
+});
+
+
+//
+// Return value from Cookie
+//
+function getCookie(cname) {
+
+    var name = cname + "=";
+    var decodedCookie = decodeURIComponent(document.cookie);
+    var ca = decodedCookie.split(';');
+    for (var i = 0; i < ca.length; i++) {
+        var c = ca[i];
+        while (c.charAt(0) == ' ') {
+            c = c.substring(1);
+        }
+        if (c.indexOf(name) == 0) {
+            return c.substring(name.length, c.length);
+        }
+    }
+    return "";
+}
+
+//
+// Check if sessionStorage is allowed by browser
+//
+function checkSessionStorage() {
+    try {
+        sessionStorage.setItem('xx', 'xx');
+        sessionStorage.removeItem('xx');
+        //return true;
+        return false;
+    } catch (e) {
+        return false;
+    }
+}
+
+function getLastPageTitle() {
+
+    var historyStr;
+    var obj;
+    var lastPageLabel;
+
+    if (checkSessionStorage()) {
+        historyStr = sessionStorage.getItem("pt_history");
+        if (historyStr && historyStr !== "") {
+            obj = JSON.parse(historyStr);
+            return obj.nodes[obj.nodes.length - 1].label;
+        }
+    } else {
+        historyStr = getCookie("psback");
+        historyStr = historyStr.substring(1);
+        historyStr = historyStr.substring(0, historyStr.length - 1);
+        historyStr = '{' + historyStr + '}';
+        historyStr = historyStr.replace(/"\s"/g, '","');
+        obj = JSON.parse(historyStr);
+
+        return obj.label;
+    }
+    return "";
+}
+
+function initValues() {
+
+    //----------------------------------------------
+    //IMPORTANT to prevent Back button -- DO NOT REMOVE
+    //----------------------------------------------
+    history.replaceState(null, null, document.referrer);
+    //document.title = $('#pymntTitle').html();
+    document.title = getLastPageTitle();
+    $("#payment_confirmation").submit();
+}                               
+                                  
+                                  
+                                  
+                                  
+//===========================                                 
+// ANU_ANZ_CYBRSRC_RESP_TRGR
+//===========================                                  
+                                  
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.6.0.js"></script>
+
+<form id="response_processing" action="/" method="post">
+%Bind(:1)
+</form>
+
+<span id='responseRedirect' style="display: none;">%Bind(:2)</span>
+<span id='responseTitle' style="display: none;">%Bind(:3)</span>
+
+<script type="text/javascript" src="%JavaScript(ANU_ANZ_CYBRSRC_RESP_TR_SCRIPT)"></script>
+                                  
+//===============================
+// ANU_ANZ_CYBRSRC_RESP_TR_SCRIPT
+//===============================
+
+$(function () {
+   var payment_form = $('#response_processing').attr('id');
+   if (payment_form === "response_processing") {
+      initValues();
+   }
+});
+
+function initValues() {
+
+   var fallBackURL = $('#responseRedirect').html();
+
+   //----------------------------------------------
+   //IMPORTANT to prevent Back button -- DO NOT REMOVE
+   //----------------------------------------------
+   history.replaceState(null, null, fallBackURL); 
+   document.title = $('#responseTitle').html();
+
+}
+
+
+//===============================
+// ANU_ANZ_PAYMENT_WAIT_PAGE
+//===============================
+
+<style>
+    .wait4payment {
+        position: absolute;
+        text-align: center;
+
+        top: 50%;
+        left: 50%;
+
+        transform: translate(-50%, -50%);
+        -ms-transform: translate(-50%, -50%); /* for IE 9 */
+        -webkit-transform: translate(-50%, -50%); /* for Safari */
+
+        display: flexbox;
+    }
+</style>
+
+%Bind(:4)
+
+<script>
+    function redirectPage() {
+        window.setTimeout(function () { window.top.location.href = "%Bind(:1)"; }, %Bind(:2));
+    }
+
+   //----------------------------------------------
+   //IMPORTANT to prevent Back button -- DO NOT REMOVE
+   //----------------------------------------------
+    if (window.parent)
+        window.parent.document.title = '%Bind(:3)';
+    else
+        document.title = '%Bind(:3)';
+
+    history.replaceState(null, null, '%Bind(:1)');
+   //----------------------------------------------
+
+    window.addEventListener('load', function () { redirectPage(); });
+</script>
+
+
+<div class='wait4payment'>
+    <h3>Fetching payment status.. Please wait</h3><br />
+    <img src="%image(PT_PROCESSING_FMODE)">
+</div>
+
+
+//======================
+// ANU_INJECT_VIEWPORT
+//======================
+
+<script type="text/javascript">
+//
+// set Viewport for mobile devices
+//
+  var metaEle = document.createElement('meta');
+  metaEle.setAttribute('name','viewport');
+  metaEle.setAttribute('content','width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no');
+
+  var headEle = document.getElementsByTagName('head');
+  headEle[0].appendChild(metaEle);
+
+//
+// set Title for custom ANU CREF template
+//
+  window.addEventListener('load', function () {
+    var docTitle = document.getElementsByTagName("title")[0].innerHTML; 
+    document.getElementsByClassName("titletext")[0].innerHTML = docTitle;
+  });
+
+</script>
