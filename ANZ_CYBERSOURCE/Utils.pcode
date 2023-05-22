@@ -4,12 +4,39 @@ class Utils
    
    method getPropertyAsString(&JSON_Object As JsonObject, &propertyName As string) Returns string;
    method getPropertyAsArray(&JSON_Object As JsonObject, &propertyName As string) Returns array of string;
+   method getPropertyAsObject(&JSON_Object As JsonObject, &propertyName As string) Returns JsonObject;
    
    method print(&JSON_Object As JsonObject);
    
+   method errorLog(&errMsg As string);
+   
    method HmacSHA256_JAVA(&messageStr As string, &secretStr As string) Returns string;
+   method HmacSHA256_JAVA_DecodeBase64Key(&messageStr As string, &secretStr As string) Returns string;
+   
+   method parsePaymentReference(&pymntRefNbr As string, &getValueFor As string) Returns string;
+   
+   method getRedirectDetails(&GUID As string, &pageTitle As string out, &redirectURL As string out);
+   
+   method getDateTimeInUTC(&inDateTime As datetime) Returns string;
    
 end-class;
+
+
+Declare Function GetUniHeaderHTML PeopleCode WEBLIB_PORTAL.PORTAL_HEADER FieldFormula;
+Declare Function SetDocDomainToAuthTokenDomain PeopleCode FUNCLIB_PORTAL.TEMPLATE_FUNC FieldFormula;
+
+
+method errorLog
+   /+ &errMsg as String +/
+   
+   Local string &fallBackURL = GenerateComponentPortalURL(%Portal, %Node, MenuName.ANU_ISIS, "GBL", Component.ANU_CHARGES_TO_PAY, Page.ANU_CHARGES_TO_PAY, "U");
+   
+   Local string &domainScriptHTML = SetDocDomainToAuthTokenDomain();
+   
+   %Response.WriteLine(GetHTMLText(HTML.ANU_PAYMENT_ERROR_PAGE_HEADER, GetUniHeaderHTML("", "", "", "", ""), &errMsg, &fallBackURL, &domainScriptHTML));
+   
+end-method;
+
 
 method HmacSHA256_JAVA
    /+ &messageStr as String, +/
@@ -21,7 +48,6 @@ method HmacSHA256_JAVA
    try
       
       /*--[ Derived Logic from PTSF_ES.ESIMPL.JsonService.OnExecute -- method hmacAuthenticationHeader ]--*/
-      
       Local object &oByteStr = CreateJavaObject("java.lang.String", &secretStr);
       Local object &signingKey = CreateJavaObject("javax.crypto.spec.SecretKeySpec", &oByteStr.getBytes("UTF8"), "HmacSHA256");
       Local object &mac = GetJavaClass("javax.crypto.Mac").getInstance("HmacSHA256");
@@ -35,7 +61,40 @@ method HmacSHA256_JAVA
       &returnStr = &authenc;
       
    catch Exception &ex
-      Error &ex.ToString();
+      Return &ex.ToString();
+   end-try;
+   
+   Return &returnStr;
+   
+end-method;
+
+
+
+method HmacSHA256_JAVA_DecodeBase64Key
+   /+ &messageStr as String, +/
+   /+ &secretStr as String +/
+   /+ Returns String +/
+   
+   Local string &returnStr;
+   
+   try
+      
+      Local JavaObject &decoder = GetJavaClass("com.peoplesoft.tools.util.Base64");
+      Local JavaObject &decodedBytes = &decoder.decode(&secretStr);
+      
+      Local object &signingKey = CreateJavaObject("javax.crypto.spec.SecretKeySpec", &decodedBytes, "HmacSHA256");
+      Local object &mac = GetJavaClass("javax.crypto.Mac").getInstance("HmacSHA256");
+      &mac.init(&signingKey);
+      
+      Local object &hmacbytes = &mac.doFinal(CreateJavaObject("java.lang.String", &messageStr).getBytes("UTF8"));
+      
+      Local object &oEncoder = CreateJavaObject("com.peoplesoft.tools.util.Base64");
+      Local string &authenc = &oEncoder.encode(&hmacbytes);
+      
+      &returnStr = &authenc;
+      
+   catch Exception &ex
+      Return &ex.ToString();
    end-try;
    
    Return &returnStr;
@@ -135,6 +194,24 @@ method getPropertyAsArray
 end-method;
 
 
+method getPropertyAsObject
+   /+ &JSON_Object as JsonObject, +/
+   /+ &propertyName as String +/
+   /+ Returns JsonObject +/
+   
+   Local JsonObject &returnJSON_Obj;
+   
+   If &JSON_Object.IsJsonObject(&propertyName) Then
+      
+      &returnJSON_Obj = &JSON_Object.GetJsonObject(&propertyName);
+      
+   End-If;
+   
+   Return &returnJSON_Obj;
+   
+end-method;
+
+
 method print
    /+ &JSON_Object as JsonObject +/
    
@@ -157,5 +234,107 @@ method print
       %Response.WriteLine(&propertyName | " = " | &propertyValue);
       %Response.WriteLine("<br/>");
    End-For;
+   
+end-method;
+
+
+method parsePaymentReference
+   /+ &pymntRefNbr as String, +/
+   /+ &getValueFor as String +/
+   /+ Returns String +/
+   
+   Local array of string &splitVals = Split(&pymntRefNbr, "-");
+   
+   If &splitVals.Len = 3 Then
+      Evaluate &getValueFor
+      When = "COMMON_ID"
+         Return &splitVals [1];
+         Break;
+      When = "SA_ID_TYPE"
+         Return Substring(&splitVals [3], 1, 1);
+         Break;
+      When = "ANU_PAYMENT_TYPE"
+         Return &splitVals [2];
+         Break;
+      When = "ANU_PAYMENT_ID"
+         Return Substring(&splitVals [1], 2, Len(&splitVals [3]) - 1);
+         Break;
+      When-Other
+         Return "";
+         Break;
+      End-Evaluate;
+   End-If;
+   
+end-method;
+
+
+method getRedirectDetails
+   /+ &GUID as String, +/
+   /+ &pageTitle as String out, +/
+   /+ &redirectURL as String out +/
+   
+   Local string &TxnRefNbr;
+   
+   SQLExec("SELECT ANU_TRANS_REF FROM PS_ANU_ANZ_TRANSAC WHERE GUID=:1", &GUID, &TxnRefNbr);
+   
+   Local string &redirMenu, &redirComp, &redirPage;
+   
+   Evaluate %This.parsePaymentReference(&TxnRefNbr, "ANU_PAYMENT_TYPE")
+   When = "F"
+   When = "T"
+   When = "M"
+      &redirMenu = MenuName.ANU_ISIS;
+      &redirComp = Component.ANU_DIALECT_DR;
+      &redirPage = Page.ANU_DIALECT_DR;
+      Break;
+   When = "A"
+   When = "X"
+      &redirMenu = MenuName.ANU_ISIS;
+      &redirComp = Component.ANU_AHEGS_DLECT_DR;
+      &redirPage = Page.ANU_AHEGS_DIALECT;
+      Break;
+   When-Other
+      
+   End-Evaluate;
+   
+   Local array of any &returnCols = CreateArrayAny();
+   
+   SQLExec("SELECT PORTAL_NAME, PORTAL_OBJNAME, PORTAL_LABEL FROM PSPRSMDEFN WHERE PORTAL_URI_SEG1=:1 AND PORTAL_URI_SEG2=:2", &redirMenu, &redirComp, &returnCols);
+   
+   /*%This.pageTitle = &returnCols [3];
+   %This.redirectURL = GenerateComponentPortalURL(%Portal, %Node, @("MenuName." | &redirMenu), "GBL", @("Component." | &redirComp), @("Page." | &redirPage), "U");*/
+   
+   Local ApiObject &Portal, &cref;
+   
+   &Portal = %Session.GetPortalRegistry();
+   
+   If Not &Portal.Open(&returnCols [1]) Then
+      Error MsgGet(95, 5021, "Error opening portal: %1.", "EMPLOYEE");
+   End-If;
+   
+   &cref = &Portal.FindCRefByName(&returnCols [2]);
+   If &cref <> Null Then
+      &pageTitle = &cref.Label;
+      &redirectURL = &cref.AbsolutePortalURL;
+      
+      If Find("?", &redirectURL) = 0 Then
+         &redirectURL = &redirectURL | "?";
+      End-If;
+      &redirectURL = &redirectURL | "&Page=" | &redirPage;
+   Else
+      Error "Unable to find the redirect URL";
+   End-If;
+   
+end-method;
+
+
+method getDateTimeInUTC
+   /+ &inDateTime as DateTime +/
+   /+ Returns String +/
+   
+   Local string &UTC_DateTime = FormatDateTime(&inDateTime, "UTC", False);
+   Local string &outDateTime = Substring(&UTC_DateTime, 1, 10) | "T" | Substring(&UTC_DateTime, 12, 2) | ":" | Substring(&UTC_DateTime, 15, 2) | ":" | Substring(&UTC_DateTime, 18, 2) | "Z";
+   
+   Return &outDateTime;
    
 end-method;
