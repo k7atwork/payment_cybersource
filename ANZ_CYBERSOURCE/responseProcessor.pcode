@@ -1,3 +1,8 @@
+/*--------------------[ ANU Customisations ]--------------------
+INC0394481, K7, 2021-09-09
+ - Initial Build
+---------------------------------------------------------------*/
+
 import ANU_ANZ_CYBERSOURCE:*;
 
 class responseProcessor extends ANU_ANZ_CYBERSOURCE:parameterProcessor
@@ -26,6 +31,10 @@ end-class;
 Declare Function SetDocDomainToAuthTokenDomain PeopleCode FUNCLIB_PORTAL.TEMPLATE_FUNC FieldFormula;
 
 
+/*-----------------------------------------------------------
+ Public Method called from 
+ WEBLIB_ANU.ANU_ANZ_CYBRSRC.IScript_responseProcessor 
+-----------------------------------------------------------*/
 method responseProcessor
    /+ &clientIsBrowser as Boolean +/
    
@@ -52,6 +61,10 @@ method responseProcessor
 end-method;
 
 
+/*-----------------------------------------------------------
+ Private Method to redirect user to Dialect Receipt page
+ to process received response
+-----------------------------------------------------------*/
 method waitBeforeRedirect
    /+ &milliSecs as Number +/
    
@@ -67,6 +80,13 @@ method waitBeforeRedirect
 end-method;
 
 
+/*-----------------------------------------------------------
+ Public Method could be called from 
+ * ANU_ANZ_CYBERSOURCE:RestPostHandler for receiving response
+   through IB gateway
+ * WEBLIB_ANU.ANU_ANZ_CYBRSRC.IScript_responseProcessor
+   for Debugging purpose.
+-----------------------------------------------------------*/
 method process
    
    If Not %This.isBrowser Then
@@ -130,6 +150,9 @@ method process
 end-method;
 
 
+/*-----------------------------------------------------------
+ Private Method 
+-----------------------------------------------------------*/
 method init
    /+ Extends/implements ANU_ANZ_CYBERSOURCE:parameterProcessor.init +/
    
@@ -206,6 +229,11 @@ method init
 end-method;
 
 
+/*-----------------------------------------------------------
+ Public Method called from 
+ * WEBLIB_ANU.ANU_ANZ_CYBRSRC.IScript_responseProcessor
+   for Debugging purpose.
+-----------------------------------------------------------*/
 method print
    
    /*--[ Display Response Parameter values ]--*/
@@ -231,6 +259,9 @@ method print
 end-method;
 
 
+/*-----------------------------------------------------------
+ Private Method 
+-----------------------------------------------------------*/
 method errorLog
    /+ &errMsg as String +/
    
