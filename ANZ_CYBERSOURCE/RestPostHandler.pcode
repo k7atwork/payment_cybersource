@@ -1,0 +1,68 @@
+import PS_PT:Integration:IRequestHandler;
+import ANU_ANZ_CYBERSOURCE:*;
+
+class RestPostHandler implements PS_PT:Integration:IRequestHandler
+   method OnRequest(&MSG As Message) Returns Message;
+   
+   method OnError(&request As Message) Returns string;
+end-class;
+
+method OnRequest
+   /+ &MSG as Message +/
+   /+ Returns Message +/
+   /+ Extends/implements PS_PT:Integration:IRequestHandler.OnRequest +/
+   
+   /*------------------------------*/
+   /* Debug -- Please remove       */
+   /*------------------------------*/
+   <*
+   Local number &I;
+   Local IBConnectorInfo &IBConInfo = &MSG.IBInfo.IBConnectorInfo;
+   Local string &debugMsgTxt;
+   &debugMsgTxt = &IBConInfo.PathInfo | "<--|-->";
+   For &I = 1 To &IBConInfo.GetNumberOfConnectorProperties();
+      &debugMsgTxt = &debugMsgTxt | "<--|-->" | &IBConInfo.GetConnectorPropertiesName(&I) | " = " | &IBConInfo.GetConnectorPropertiesValue(&I)
+      /* do processing */
+   End-For;
+   
+   Local Record &debugRec = CreateRecord(Record.ANU_DEBUG_LOGS);
+   &debugRec.DATETIME_STAMP.Value = %Datetime;
+   &debugRec.IB_SOAPTESTRESP.Value = &debugMsgTxt | "<-##-|-##->" | &MSG.GetContentString();
+   
+   &debugRec.Insert();
+   *>
+   /*------------------------------*/
+   
+   Local ANU_ANZ_CYBERSOURCE:responseProcessor &_response = create ANU_ANZ_CYBERSOURCE:responseProcessor( False);
+   
+   &_response.responseString = RTrim(Unencode(&MSG.GetContentString()), Char(13));
+   &_response.process();
+   
+   /*---------------------------------*/
+   /*--[ Prepare and send response ]--*/
+   /*---------------------------------*/
+   Local Message &response;
+   
+   &response = CreateMessage(Operation.ANU_ANZ_PAYMENT_RESPONSE_POST, %IntBroker_Response);
+   
+   Local XmlDoc &xmlout;
+   Local XmlNode &childNode;
+   
+   &xmlout = CreateXmlDoc("<?xml version='1.0'?><response/>");
+   
+   &childNode = &xmlout.DocumentElement.AddElement("status").AddText(&_response.errorString);
+   
+   &response.SetXmlDoc(&xmlout);
+   
+   Return &response;
+   
+end-method;
+
+method OnError
+   /+ &request as Message +/
+   /+ Returns String +/
+   /+ Extends/implements PS_PT:Integration:IRequestHandler.OnError +/
+   
+   Return &request.IBException.ToString();
+   
+end-method;
