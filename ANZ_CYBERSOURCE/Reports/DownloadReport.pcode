@@ -1,0 +1,61 @@
+import SCC_COMMON_UTILITIES:UTIL:AnyHashMap;
+import ANU_ANZ_CYBERSOURCE:Reports:*;
+import ANU_ANZ_CYBERSOURCE:Utils;
+
+import ANU_ANZ_CYBERSOURCE:paymentGatewayConfig;
+
+class DownloadReport extends ANU_ANZ_CYBERSOURCE:Reports:BaseRequest
+   method DownloadReport(&in_reportDate As string, &in_reportName As string);
+   method execute() Returns string;
+private
+   instance ANU_ANZ_CYBERSOURCE:paymentGatewayConfig &_config;
+   instance string &reportName;
+end-class;
+
+method DownloadReport
+   /+ &in_reportDate as String, +/
+   /+ &in_reportName as String +/
+   
+   %This.reportName = &in_reportName;
+   
+   /*-------------------------------------------------*/
+   /*--[ Get Payment Gateway Configuration Details ]--*/
+   /*-------------------------------------------------*/
+   %This._config = create ANU_ANZ_CYBERSOURCE:paymentGatewayConfig();
+   
+   Local string &operationName = "ANU_ANZ_GET_AVAILABLE_RPTS_GET";
+   
+   Local SCC_COMMON_UTILITIES:UTIL:AnyHashMap &uriTemplateParams = create SCC_COMMON_UTILITIES:UTIL:AnyHashMap();
+   
+   &uriTemplateParams.Put("organizationId", %This._config.merchant_id);
+   &uriTemplateParams.Put("reportDate", &in_reportDate);
+   &uriTemplateParams.Put("reportName", %This.reportName);
+   
+   &uriTemplateParams.Put("accept", String("text/csv"));
+   
+   %Super = create ANU_ANZ_CYBERSOURCE:Reports:BaseRequest(&operationName, 2, &uriTemplateParams);
+   
+end-method;
+
+
+method execute
+   /+ Returns String +/
+   
+   %This.BuildRequest();
+   
+   Local string &responseString = %This.SendRequest();
+   
+   Local string &outputPath;
+   SQLExec("SELECT STRING_TEXT FROM PS_ANU_STRING_TBL WHERE STRING_ID=:1", "FILEIC_ITS", &outputPath);
+   
+   Local string &filePath = &outputPath | %This.reportName | "_" | %Datetime | ".csv";
+   
+   Local File &reportFile = GetFile(&filePath, "W", %FilePath_Absolute);
+   &reportFile.WriteString(&responseString);
+   
+   &reportFile.Close();
+   
+   Return &filePath;
+   
+end-method;
+
