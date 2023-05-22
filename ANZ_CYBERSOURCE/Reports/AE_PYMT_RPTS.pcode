@@ -1,0 +1,120 @@
+import SCC_COMMON_UTILITIES:UTIL:AnyHashMap;
+import ANU_ANZ_CYBERSOURCE:Reports:*;
+import ANU_ANZ_CYBERSOURCE:Utils;
+
+import ANU_UTILITIES:DEBUG:debug;
+
+
+Local ANU_ANZ_CYBERSOURCE:Utils &_Utils = create ANU_ANZ_CYBERSOURCE:Utils();
+
+Local string &stDtTm, &endDtTm;
+
+&stDtTm = &_Utils.getDateTimeInUTC(AddToDateTime(%Datetime, 0, 0, 0, - 24, 0, 0));
+&endDtTm = &_Utils.getDateTimeInUTC(%Datetime);
+
+&stDtTm = "2023-05-15T00:00:00Z";
+rem &endDtTm = "2022-05-01T23:59:59Z";
+
+/*-----------------------------------------------*/
+/*--[ Get Available Reports between the dates ]--*/
+/*-----------------------------------------------*/
+rem Local array of SCC_COMMON_UTILITIES:UTIL:AnyHashMap &availableReports = (create ANU_ANZ_CYBERSOURCE:Reports:AvailableReports("2022-04-10T00:00:00Z", "2022-04-28T23:59:59Z")).execute();
+Local array of SCC_COMMON_UTILITIES:UTIL:AnyHashMap &availableReports = (create ANU_ANZ_CYBERSOURCE:Reports:AvailableReports(&stDtTm, &endDtTm)).execute();
+rem MessageBox(0, "", 0, 0, "&availableReports = " | &availableReports.Len);
+
+Local number &i;
+Local SCC_COMMON_UTILITIES:UTIL:AnyHashMap &Report;
+
+/*-----------------------------------------------*/
+/*--[ If Reports are Available, then download ]--*/
+/*-----------------------------------------------*/
+If &availableReports <> Null Then
+   
+   For &i = 1 To &availableReports.Len
+      
+      &Report = &availableReports [&i];
+      
+      /*--------------------
+   Local array of string &keys = &Report.GetKeys();
+   
+   For &j = 1 To &keys.Len
+      MessageBox(0, "", 0, 0, &keys [&j] | " = " | &Report.Get(&keys [&j]));
+   End-For;
+   --------------------*/
+      
+      If &Report.Get("reportName") = "ANU_DAILY_TRANS_RECON_REPORT" And
+            &Report.Get("status") = "COMPLETED" Then
+         Local string &reportPath = (create ANU_ANZ_CYBERSOURCE:Reports:DownloadReport(Substring(&Report.Get("reportEndTime"), 1, 10), "ANU_DAILY_TRANS_RECON_REPORT")).execute();
+         /*Break;
+      End-If;
+      
+   End-For;*/
+         
+         REM MessageBox(0, "", 0, 0, "Report path: " | &reportPath);
+         
+         If FileExists(&reportPath, %FilePath_Absolute) Then
+            
+            Local ANU_UTILITIES:DEBUG:debug &_debug = create ANU_UTILITIES:DEBUG:debug("AEOUT", Null);
+            &_debug.delimeter = """,""";
+            
+            /*--[ Open file, if it exists ]--*/
+            Local File &reportCSV = GetFile(&reportPath, "E", %FilePath_Absolute);
+            
+            If &reportCSV.IsOpen Then
+               
+               /*-----------------------------------------------*/
+               /*--[ Read the downloaded Report Line by Line ]--*/
+               /*-----------------------------------------------*/
+               
+               &reportCSV.SetFileLayout(FileLayout.ANU_ANZ_CYBRSRC_PYMNT_RECON);
+               
+               Local Rowset &transRS = &reportCSV.CreateRowset();
+               &transRS = &reportCSV.ReadRowset();
+               
+               Local integer &rowCount = 1;
+               /*-----------------------------------------*/
+               /* To Remove the Header Row from the File, */
+               /* &rowCount Variable is used to check     */
+               /* for 1st & 2nd rows                      */
+               /*-----------------------------------------*/
+               
+               While &transRS <> Null;
+                  If &rowCount > 2 Then
+                     
+                     Local Record &reconRec = &transRS.GetRow(1).ANU_PYMNT_RECON;
+                     
+                     If All(&reconRec.ANU_MERCHANT_REF.Value, &reconRec.ANU_PAYMNT_RECEIPT.Value) Then
+                        
+                        rem &_debug.display_record(&transRS.GetRow(1).GetRecord(1));
+                        REM Warning &reconRec.ANU_MERCHANT_REF.Value | " for $" | &reconRec.AMOUNT.Value | " is " | Split(&reconRec.RESPONSE_CD.Value, ",")[1] | " {" | Split(&reconRec.ANU_PAYMNT_RESP_CD.Value, ",")[1] | "}";
+                        
+                        /*-----------------------------------------------------------*/
+                        /*--[ Update Response for Transaction in Initiated status ]--*/
+                        /*-----------------------------------------------------------*/
+                        If (create ANU_ANZ_CYBERSOURCE:Reports:BatchReconilliation()).executeRecon(&reconRec.ANU_MERCHANT_REF.Value, &reconRec.ANU_PAYMNT_RECEIPT.Value) Then
+                        Else
+                           rem MessageBox(0, "", 0, 0, "%1 - Unable to fetch & update transaction response.", &reconRec.ANU_MERCHANT_REF.Value);
+                        End-If;
+                        
+                     End-If;
+                  End-If;
+                  &rowCount = &rowCount + 1;
+                  &transRS = &reportCSV.ReadRowset();
+               End-While;
+               
+               /*-------------------------------------------------*/
+               /*--[ Delete Downloaded Report after processing ]--*/
+               /*-------------------------------------------------*/
+               &reportCSV.Delete();
+               
+            End-If;
+            
+         End-If;
+         
+      End-If;
+      
+   End-For;
+   
+Else
+   Warning ("Unable to fetch the Available Reports");
+End-If;
