@@ -1,0 +1,167 @@
+import ANU_ANZ_CYBERSOURCE:*;
+
+class preparePostRequest extends ANU_ANZ_CYBERSOURCE:parameterProcessor
+   method preparePostRequest(&inTxnRefNbr As string);
+   method post();
+   
+private
+   
+   method init();
+   
+   instance ANU_ANZ_CYBERSOURCE:paymentGatewayConfig &_config;
+   
+   instance string &pymntRefNbr;
+   instance string &pymntAmount;
+   
+   instance array of string &signValues;
+   
+end-class;
+
+
+method preparePostRequest
+   /+ &inTxnRefNbr as String +/
+   
+   %Super = create ANU_ANZ_CYBERSOURCE:parameterProcessor();
+   
+   Local string &TxnRefNbr = Decrypt("", Unencode(&inTxnRefNbr));
+   
+   Local array of string &pymntDtls = Split(&TxnRefNbr, "|");
+   
+   %This.pymntRefNbr = &pymntDtls [1];
+   %This.pymntAmount = &pymntDtls [2];
+   
+   %This.signValues = CreateArrayRept("", 0);
+   
+   Local string &exists;
+   SQLExec("SELECT 'X' FROM %TABLE(ANU_ANZ_TRANSAC) WHERE ANU_TRANS_REF=:1", %This.pymntRefNbr, &exists);
+   
+   If &exists <> "X" Then
+      %This.init();
+   Else
+      %This._Utils.errorLog("Duplicate transaction initiated !<br/><br/>This may happen if you used the browser back button or reloaded the page.");
+   End-If;
+   
+end-method;
+
+
+method post
+   
+   /*----------------------------*/
+   /*--[ Prepare Form to Post ]--*/
+   /*----------------------------*/
+   Local string &hiddenHTMLinput;
+   Local number &i;
+   
+   For &i = 1 To %This.parameterValues.Len
+      &hiddenHTMLinput = &hiddenHTMLinput | Char(10) | "<input type='hidden' id='" | %This.parameterValues [&i][1] | "' name='" | %This.parameterValues [&i][1] | "' value='" | %This.parameterValues [&i][2] | "' readonly>";
+   End-For;
+   
+   Local JsonObject &requestAsJSON = %This._Utils.prepareJSONfromArray(%This.parameterValues);
+   
+   /*-----------------------------------*/
+   /*--[ Navigate to Payment Gateway ]--*/
+   /*-----------------------------------*/
+   If %This.getParameterValue("transaction_uuid") <> "" Then
+      
+      /*--[ Insert values into DB ]--*/
+      Local Record &recTrans = CreateRecord(Record.ANU_ANZ_TRANSAC);
+      &recTrans.GUID.Value = %This.getParameterValue("transaction_uuid");
+      &recTrans.ANU_TRANS_REF.Value = %This.getParameterValue("reference_number");
+      &recTrans.IB_SOAPREQ.Value = &requestAsJSON.ToString();
+      &recTrans.IB_SOAPRESP.Value = "";
+      &recTrans.IB_STATUS_IND_GUI.Value = "0";
+      &recTrans.Insert();
+      
+      %Response.Write(GetHTMLText(HTML.ANU_ANZ_CYBRSRC_PYMNT_TRGR, %This._config.getParameterValue("URL"), &hiddenHTMLinput, ""));
+      
+   End-If;
+   
+end-method;
+
+
+method init
+   /+ Extends/implements ANU_ANZ_CYBERSOURCE:parameterProcessor.init +/
+   
+   Local number &i;
+   
+   /*-------------------------------------------------*/
+   /*--[ Get Payment Gateway Configuration Details ]--*/
+   /*-------------------------------------------------*/
+   %This._config = create ANU_ANZ_CYBERSOURCE:paymentGatewayConfig();
+   
+   /*----------------------------*/
+   /*--[ Get Parameter values ]--*/
+   /*----------------------------*/
+   
+   Local string &transaction_uuid, &reference_number, &signed_date_time;
+   
+   &transaction_uuid = UuidGen();
+   
+   &signed_date_time = %This._Utils.getDateTimeInUTC(%Datetime);
+   
+   Local string &returnURL = GenerateScriptContentURL(%Portal, %Node, Record.WEBLIB_ANU, Field.ANU_ANZ_CYBRSRC, "FieldFormula", "IScript_responseProcessor") | "?postDataBin=y";
+   rem &returnURL = "https://dev2.esig.anu.edu.au:10101/PSIGW/RESTListeningConnector/CSDEVL/ANU_ANZ_PAYMENT_RESPONSE.v1/doResponse";
+   
+   /*------------------------------*/
+   /*--[ Prepare to Post values ]--*/
+   /*------------------------------*/
+   
+   %This.parameterValues.Push(CreateArray("access_key", %This._config.access_key));
+   %This.parameterValues.Push(CreateArray("profile_id", %This._config.profile_id));
+   %This.parameterValues.Push(CreateArray("transaction_uuid", &transaction_uuid));
+   rem %This.parameterValues.Push(CreateArray("signed_field_names", "access_key,profile_id,transaction_uuid,signed_field_names,unsigned_field_names,signed_date_time,locale,transaction_type,reference_number,amount,currency"));
+   %This.parameterValues.Push(CreateArray("signed_field_names", "access_key,profile_id,transaction_uuid,signed_field_names,unsigned_field_names,signed_date_time,locale,transaction_type,reference_number,amount,currency,bill_to_address_line1,bill_to_address_city,bill_to_address_postal_code,bill_to_address_state,bill_to_address_country,bill_to_email,bill_to_forename,bill_to_surname,invoiceHeader_merchantDescriptorCity"));
+   %This.parameterValues.Push(CreateArray("unsigned_field_names", ""));
+   %This.parameterValues.Push(CreateArray("signed_date_time", &signed_date_time));
+   %This.parameterValues.Push(CreateArray("locale", "en"));
+   rem %This.parameterValues.Push(CreateArray("transaction_type", "authorization"));
+   %This.parameterValues.Push(CreateArray("transaction_type", "sale"));
+   %This.parameterValues.Push(CreateArray("reference_number", %This.pymntRefNbr));
+   %This.parameterValues.Push(CreateArray("amount", %This.pymntAmount));
+   %This.parameterValues.Push(CreateArray("currency", "AUD"));
+   %This.parameterValues.Push(CreateArray("signature", ""));
+   
+   /*
+   %This.parameterValues.Push(CreateArray("override_backoffice_post_url", &returnURL));   
+   %This.parameterValues.Push(CreateArray("override_backoffice_post_url", "https://dev2.esig.anu.edu.au/PSIGW/RESTListeningConnector/CSDEVL/ANU_ANZ_PAYMENT_RESPONSE.v1/doResponse"));
+   */
+   %This.parameterValues.Push(CreateArray("override_backoffice_post_url", %IntBroker.GetURL("ANU_ANZ_PAYMENT_RESPONSE_POST", 1, Null, True)));
+   rem Error %IntBroker.GetURL("ANU_ANZ_PAYMENT_RESPONSE_POST", 1, Null, True);
+   rem %This.parameterValues.Push(CreateArray("override_backoffice_post_url", "https://webhook.site/679fcb31-d785-4563-aad2-3a9d43320576"));
+   
+   rem %This.parameterValues.Push(CreateArray("override_custom_cancel_page", &returnURL));
+   
+   %This.parameterValues.Push(CreateArray("bill_to_address_line1", "Biology Place"));
+   %This.parameterValues.Push(CreateArray("bill_to_address_city", "Canberra"));
+   %This.parameterValues.Push(CreateArray("bill_to_address_postal_code", "2601"));
+   %This.parameterValues.Push(CreateArray("bill_to_address_state", "ACT"));
+   %This.parameterValues.Push(CreateArray("bill_to_address_country", "AU"));
+   %This.parameterValues.Push(CreateArray("bill_to_email", "f8459@anu.edu.au"));
+   %This.parameterValues.Push(CreateArray("bill_to_forename", "ANU"));
+   %This.parameterValues.Push(CreateArray("bill_to_surname", "User"));
+   
+   %This.parameterValues.Push(CreateArray("invoiceHeader_merchantDescriptorCity", "Canberra"));
+   
+   /*------------------------------*/
+   /*--[ Prepare to Sign values ]--*/
+   /*------------------------------*/
+   %This.signValues = Split(%This.getParameterValue("signed_field_names"), ",");
+   
+   Local string &comma = "";
+   Local string &msgToHash;
+   Local number &pos;
+   
+   For &i = 1 To %This.signValues.Len
+      &pos = %This.parameterValues.Find(&signValues [&i]);
+      &msgToHash = &msgToHash | &comma | %This.parameterValues [&pos][1] | "=" | %This.parameterValues [&pos][2];
+      &comma = ",";
+   End-For;
+   
+   /*------------------------------*/
+   /*--[      Sign values       ]--*/
+   /*------------------------------*/
+   Local string &hashInBase64 = %This._Utils.HmacSHA256_JAVA(&msgToHash, %This._config.secret_key);
+   
+   %This.setParameterValue("signature", &hashInBase64);
+   
+end-method;
