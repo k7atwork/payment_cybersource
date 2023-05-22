@@ -1,0 +1,69 @@
+import SCC_COMMON_UTILITIES:UTIL:AnyHashMap;
+import ANU_ANZ_CYBERSOURCE:Reports:*;
+import ANU_ANZ_CYBERSOURCE:Utils;
+
+import ANU_ANZ_CYBERSOURCE:paymentGatewayConfig;
+
+class TransactionDetails extends ANU_ANZ_CYBERSOURCE:Reports:BaseRequest
+   method TransactionDetails(&in_TransID As string);
+   method execute() Returns string;
+private
+   instance ANU_ANZ_CYBERSOURCE:paymentGatewayConfig &_config;
+   instance string &TransID;
+end-class;
+
+method TransactionDetails
+   /+ &in_TransID as String +/
+   
+   %This.TransID = &in_TransID;
+   
+   /*-------------------------------------------------*/
+   /*--[ Get Payment Gateway Configuration Details ]--*/
+   /*-------------------------------------------------*/
+   %This._config = create ANU_ANZ_CYBERSOURCE:paymentGatewayConfig();
+   
+   Local string &operationName = "ANU_ANZ_TRANSACTION_DTLS_GET";
+   
+   Local SCC_COMMON_UTILITIES:UTIL:AnyHashMap &uriTemplateParams = create SCC_COMMON_UTILITIES:UTIL:AnyHashMap();
+   
+   &uriTemplateParams.Put("organizationId", %This._config.merchant_id);
+   &uriTemplateParams.Put("transactionID", %This.TransID);
+   
+   &uriTemplateParams.Put("accept", String("application/hal+json"));
+   
+   %Super = create ANU_ANZ_CYBERSOURCE:Reports:BaseRequest(&operationName, 1, &uriTemplateParams);
+   
+end-method;
+
+
+method execute
+   /+ Returns String +/
+   
+   %This.BuildRequest();
+   
+   Local string &responseString = %This.SendRequest();
+   
+   /*--[ Use for Debugging ]--*/
+   If True = False Then
+      
+      Local string &outputPath;
+      SQLExec("SELECT STRING_TEXT FROM PS_ANU_STRING_TBL WHERE STRING_ID=:1", "FILEIC_ITS", &outputPath);
+      
+      Local string &filePath = &outputPath | "CYBRSRC_" | %This.TransID | "_" | %Datetime | ".json";
+      
+      Local File &TransDtlsFile = GetFile(&filePath, "W", %FilePath_Absolute);
+      &TransDtlsFile.WriteString(&responseString);
+      
+      &TransDtlsFile.Close();
+      
+      Return "FilePath: " | &filePath;
+      
+   Else
+      
+      /*--[ Return Response JSON String ]--*/
+      Return &responseString;
+      
+   End-If;
+   
+end-method;
+
