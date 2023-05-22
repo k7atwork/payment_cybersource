@@ -1,0 +1,196 @@
+import ANU_ANZ_CYBERSOURCE:Utils;
+import ANU_ANZ_CYBERSOURCE:Reports:BatchReconilliation;
+
+class paymentProcessing
+   method Init() Returns boolean;
+   method InitRecon(&inTransRef As string) Returns boolean;
+   method fetchPaymentDetails(&Emplid As string out, &SA_ID_Type As string out, &Payment_type As string out, &Payment_Nbr As string out, &purchaseAmount As number out, &status_val As string out, &qsiResponseCode As string out, &receiptNo As string out) Returns boolean;
+private
+   method prepareForProcessing(&inTransRec As Record) Returns boolean;
+   
+   instance JsonObject &jsonResp;
+   instance ANU_ANZ_CYBERSOURCE:Utils &_Utils;
+   
+   instance ANU_ANZ_CYBERSOURCE:Reports:BatchReconilliation &batchRecon;
+   instance string &respType;
+end-class;
+
+
+Global number &resp_attempt;
+
+
+method Init
+   /+ Returns Boolean +/
+   
+   Local string &transRefID = %Request.GetParameter("GUID");
+   rem WinMessage("GUID : " | &transRefID, 0);
+   
+   &_Utils = create ANU_ANZ_CYBERSOURCE:Utils();
+   
+   Local Record &transRec = CreateRecord(Record.ANU_ANZ_TRANSAC);
+   &transRec.GUID.Value = &transRefID;
+   
+   If &transRec.SelectByKey() Then
+      
+      /*--[ If response not received wait for a few secs & retry upto 6 times ]--*/
+      If None(&transRec.IB_SOAPRESP.Value) And
+            &resp_attempt < 1 Then
+         &resp_attempt = &resp_attempt + 1;
+         ViewURL(GenerateScriptContentURL(%Portal, %Node, Record.WEBLIB_ANU, Field.ANU_ANZ_CYBRSRC, "FieldFormula", "IScript_responseProcessor") | "?GUID=" | EncodeURLForQueryString(&transRefID) | "&resp_attempt=" | &resp_attempt, False);
+      Else
+         /*--[ Upon receiving the response or after trying 6 attempts ]--*/
+         &resp_attempt = 0;
+         
+         If None(&transRec.IB_SOAPRESP.Value) Then
+            /*--[ Show Message to retry, on a Blank background page ]--*/
+            rem Error "There seems to be a delay in getting a response from the Payment Gateway." | Rept(Char(10), 2) | "Please try refresh the page after a minute or two.";
+            MessageBox(0, "", 25600, 44, "", "There seems to be a delay in getting a response from the Payment Gateway." | Rept(Char(10), 2) | "Please try refresh the page after a minute or two.");
+            TransferPage(Page.MCFTPBLANK_PG);
+         Else
+            /*--[ Received Response Successfully ]--*/
+            Return %This.prepareForProcessing(&transRec);
+         End-If;
+         
+      End-If;
+      
+   Else
+      /*--[ Return Error Exists ]--*/
+      Return True;
+   End-If;
+   
+   Return False; /*--[ Return No Error Exists ]--*/
+   
+end-method;
+
+
+
+method InitRecon
+   /+ &inTransRef as String +/
+   /+ Returns Boolean +/
+   
+   Local string &transRefID;
+   SQLExec("SELECT GUID FROM %Table(ANU_ANZ_TRANSAC) WHERE ANU_TRANS_REF=:1", &inTransRef, &transRefID);
+   
+   &_Utils = create ANU_ANZ_CYBERSOURCE:Utils();
+   
+   Local Record &transRec = CreateRecord(Record.ANU_ANZ_TRANSAC);
+   &transRec.GUID.Value = &transRefID;
+   
+   If &transRec.SelectByKey() Then
+      
+      &resp_attempt = 0;
+      
+      If None(&transRec.IB_SOAPRESP.Value) Then
+         MessageBox(0, "", 25600, 45, "", "Response from the Payment Gateway has not been received." | Char(10) | "Please review transaction in Payment gateway admin portal.");
+      Else
+         /*--[ Received Response Successfully ]--*/
+         Return %This.prepareForProcessing(&transRec);
+      End-If;
+      
+      Return False;
+      
+   Else
+      /*--[ Return Error Exists ]--*/
+      Return True;
+   End-If;
+   
+end-method;
+
+
+method prepareForProcessing
+   /+ &inTransRec as Record +/
+   /+ Returns Boolean +/
+   
+   %This.respType = &inTransRec.IB_STATUS_IND_GUI.Value; /*--[ IB Handler / Batch Recon received Response ]--*/
+   
+   Evaluate %This.respType
+   When = "1"
+      %This.jsonResp = &_Utils.parseJSONfromString(&inTransRec.IB_SOAPRESP.Value);
+      rem WinMessage(&jsonResp.ToString(), 0);
+      Break;
+   When = "2"
+      %This.batchRecon = create ANU_ANZ_CYBERSOURCE:Reports:BatchReconilliation();
+      If %This.batchRecon.InitRecon(&inTransRec.ANU_TRANS_REF.Value) Then
+         MessageBox(0, "", 25600, 45, "", "Something is not right!");
+      End-If;
+      Break;
+   When-Other
+      /*--[ Return Error Exists ]--*/
+      Return True;
+   End-Evaluate;
+   
+   Return False; /*--[ Return No Error Exists ]--*/
+   
+end-method;
+
+method fetchPaymentDetails
+   /+ &Emplid as String out, +/
+   /+ &SA_ID_Type as String out, +/
+   /+ &Payment_type as String out, +/
+   /+ &Payment_Nbr as String out, +/
+   /+ &purchaseAmount as Number out, +/
+   /+ &status_val as String out, +/
+   /+ &qsiResponseCode as String out, +/
+   /+ &receiptNo as String out +/
+   /+ Returns Boolean +/
+   
+   If %This.respType = "2" Then /*-[ Batch Recon received Response ]--*/
+      
+      Return %This.batchRecon.fetchPaymentDetails(&Emplid, &SA_ID_Type, &Payment_type, &Payment_Nbr, &purchaseAmount, &status_val, &qsiResponseCode, &receiptNo);
+      
+   Else /*-[ IB Handler received Response ]--*/
+      
+      Local string &TxnRefNbr = %This._Utils.getPropertyAsString(%This.jsonResp, "req_reference_number");
+      
+      If All(&TxnRefNbr) Then
+         
+         Local number &find = Find("-", &TxnRefNbr);
+         
+         &Emplid = Substring(&TxnRefNbr, 1, &find - 1);
+         &Payment_type = Substring(&TxnRefNbr, &find + 1, 1);
+         &SA_ID_Type = Substring(&TxnRefNbr, &find + 3, 1);
+         &Payment_Nbr = Substring(&TxnRefNbr, &find + 4, Len(&TxnRefNbr) - (&find + 3));
+         
+         Evaluate %This._Utils.getPropertyAsString(%This.jsonResp, "decision")
+         When = "ACCEPT"
+            &status_val = "A";
+            Break;
+         When = "DECLINE"
+            &status_val = "R";
+            Break;
+         When = "REVIEW"
+         When = "ERROR"
+            &status_val = "R";
+            Break;
+         When = "CANCEL"
+            &status_val = "C";
+            Break;
+         End-Evaluate;
+         
+         &purchaseAmount = Value(%This._Utils.getPropertyAsString(%This.jsonResp, "req_amount")) * 100;
+         
+         &qsiResponseCode = %This._Utils.getPropertyAsString(%This.jsonResp, "reason_code");
+         
+         &receiptNo = %This._Utils.getPropertyAsString(%This.jsonResp, "transaction_id");
+         
+         /*--[ Handle Cancel action ]--*/
+         If &status_val = "C" Then
+            &qsiResponseCode = "CANC";
+            &receiptNo = "N/A";
+         End-If;
+         
+         rem &status_val = "S";
+         rem WinMessage(&Emplid | Char(10) | &Payment_type | Char(10) | &SA_ID_Type | Char(10) | &Payment_Nbr, 0);
+         rem &Payment_Nbr = "5";
+         
+         Return False;
+         
+      Else
+         
+         Return True;
+         
+      End-If;
+      
+   End-If;
+   
+end-method;
