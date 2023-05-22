@@ -1,0 +1,255 @@
+import SCC_COMMON_UTILITIES:UTIL:AnyHashMap;
+import SCC_COMMON_UTILITIES:UTIL:ArrayHashMap;
+
+import ANU_ANZ_CYBERSOURCE:paymentGatewayConfig;
+
+import ANU_ANZ_CYBERSOURCE:Utils;
+
+class BaseRequest
+   method BaseRequest(&in_operationName As string, &in_uriResourceIndex As number, &uriTemplateParams As SCC_COMMON_UTILITIES:UTIL:AnyHashMap);
+   
+   method BuildRequest();
+   method SendRequest() Returns string;
+   
+   property Message ResponseMessage;
+   
+   property string RestMethod get;
+   property string RequestName get;
+   
+protected
+   /*
+   property string HttpResponseStatusCode_401 readonly;
+   property string HttpResponseStatusCode_404 readonly;
+   property string HttpResponseStatusCode_429 readonly;
+   property string HttpResponseStatusCode_500 readonly;
+   property string HttpResponseStatusCode_503 readonly;
+   property string MsgSeverity_Cancel readonly;
+   property string MsgSeverity_Error readonly;
+   property string MsgSeverity_Message readonly;
+   property string MsgSeverity_Warning readonly;
+   */
+   
+   property SCC_COMMON_UTILITIES:UTIL:ArrayHashMap _connectorProperties;
+   property string _url;
+   property Message _requestMessage;
+   
+private
+   method replaceUriTemplateVariables(&url As string, &uriTemplateParams As SCC_COMMON_UTILITIES:UTIL:AnyHashMap) Returns string;
+   method buildHeader();
+   
+   instance ANU_ANZ_CYBERSOURCE:paymentGatewayConfig &_config;
+   
+   instance string &_operationName;
+   instance integer &_uriResourceIndex;
+   
+   instance string &contentType;
+   
+end-class;
+
+
+method BaseRequest
+   /+ &in_operationName as String, +/
+   /+ &in_uriResourceIndex as Number, +/
+   /+ &uriTemplateParams as SCC_COMMON_UTILITIES:UTIL:AnyHashMap +/
+   
+   %This._operationName = &in_operationName;
+   %This._uriResourceIndex = &in_uriResourceIndex;
+   
+   /*-------------------------------------------------*/
+   /*--[ Get Payment Gateway Configuration Details ]--*/
+   /*-------------------------------------------------*/
+   %This._config = create ANU_ANZ_CYBERSOURCE:paymentGatewayConfig();
+   
+   If &uriTemplateParams <> Null Then
+      
+      &contentType = &uriTemplateParams.Get("accept");
+      
+      Local Message &message = CreateMessage(@("Operation." | %This.RequestName));
+      
+      Local string &version = &message.IBInfo.OperationVersion;
+      
+      If All(&version) Then
+         &uriTemplateParams.Put("version", &version);
+      End-If;
+      
+      %This._url = %IntBroker.GetURL(%This.RequestName, &_uriResourceIndex, Null);
+      %This._url = %This.replaceUriTemplateVariables(%This._url, &uriTemplateParams);
+      
+      %This._connectorProperties = create SCC_COMMON_UTILITIES:UTIL:ArrayHashMap();
+      
+      %This.buildHeader();
+      
+   End-If;
+   
+   
+end-method;
+
+get RequestName
+   /+ Returns String +/
+   Return %This._operationName;
+end-get;
+
+get RestMethod
+   /+ Returns String +/
+   Local array of string &temp = Split(%This._operationName, "_");
+   Return &temp [&temp.Len];
+end-get;
+
+
+method replaceUriTemplateVariables
+   /+ &url as String, +/
+   /+ &uriTemplateParams as SCC_COMMON_UTILITIES:UTIL:AnyHashMap +/
+   /+ Returns String +/
+   
+   Local string &replacedUrl = &url;
+   
+   Local number &pos = 0;
+   Local number &pos1, &pos2;
+   Local number &loopCount;
+   
+   try
+      
+      While &pos + 1 < Len(&replacedUrl) And
+            Find("{", &replacedUrl, &pos + 1) > 0
+         
+         &pos1 = Find("{", &replacedUrl, &pos + 1);
+         &pos2 = Find("}", &replacedUrl, &pos1 + 1);
+         
+         Local string &paramKey = Substring(&replacedUrl, &pos1 + 1, &pos2 - &pos1 - 1);
+         
+         Local string &replaceTxt = &uriTemplateParams.Get(&paramKey);
+         
+         &replacedUrl = Substitute(&replacedUrl, "{" | &paramKey | "}", &replaceTxt);
+         
+         &pos = &pos1;
+         
+         If &loopCount > &uriTemplateParams.Len Then
+            Error "Insufficient URL Parms";
+         Else
+            &loopCount = &loopCount + 1;
+         End-If;
+         
+      End-While;
+      
+   catch Exception &ex
+      
+   end-try;
+   
+   rem MessageBox(0, "", 0, 0, "Complete URL : " | &replacedUrl);
+   
+   Return &replacedUrl;
+   
+end-method;
+
+
+method buildHeader
+   
+   Local string &hdrDate = DateTimeToLocalizedString(DateTimeToTimeZone(%Datetime, "LOCAL", "GMT"), "EEE, dd MMM yyyy HH:mm:ss") | " GMT";
+   
+   Local array of string &urlParts = Split(&_url, "/");
+   Local string &hostString = &urlParts [3];
+   
+   Local string &requestString = &urlParts.Subarray(4, &urlParts.Len - 3).Join("/");
+   &requestString = "/" | Substring(&requestString, 2, Len(&requestString) - 2);
+   
+   If %This.contentType <> "" Then
+      %This._connectorProperties.Put("accept", CreateArrayAny("application/hal+json; charset=UTF-8", %HttpHeader));
+   Else
+      %This._connectorProperties.Put("accept", CreateArrayAny("*/*", %HttpHeader));
+   End-If;
+   
+   %This._connectorProperties.Put("v-c-merchant-id", CreateArrayAny(%This._config.merchant_id, %HttpHeader));
+   %This._connectorProperties.Put("v-c-date", CreateArrayAny(&hdrDate, %HttpHeader));
+   %This._connectorProperties.Put("host", CreateArrayAny(&hostString, %HttpHeader));
+   %This._connectorProperties.Put("URL", CreateArrayAny(%This._url, %HttpProperty));
+   %This._connectorProperties.Put("Method", CreateArrayAny(%This.RestMethod, %HttpProperty));
+   
+   Local string &sep = ": ";
+   
+   Local string &msg2Hash = "host" | &sep | &hostString | Char(10);
+   &msg2Hash = &msg2Hash | "(request-target)" | &sep | Lower(%This.RestMethod) | " " | &requestString | Char(10);
+   &msg2Hash = &msg2Hash | "v-c-merchant-id" | &sep | %This._config.merchant_id;
+   
+   Local ANU_ANZ_CYBERSOURCE:Utils &_utils = create ANU_ANZ_CYBERSOURCE:Utils();
+   
+   rem Local string &signatureVal = "keyid=""" | %This._config.key_id | """, algorithm=""HmacSHA256"", headers=""host (request-target) v-c-merchant-id"", signature=""" | &_utils.HmacSHA256_JAVA_DecodeBase64Key(&msg2Hash, "6VyBgMD3nDrLM0J5EtMntsooUipEJzAS0eZJ1QdX/34=") | """";
+   Local string &signatureVal = "keyid=""" | %This._config.key_id | """, algorithm=""HmacSHA256"", headers=""host (request-target) v-c-merchant-id"", signature=""" | &_utils.HmacSHA256_JAVA_DecodeBase64Key(&msg2Hash, %This._config.secret_key_base64) | """";
+   
+   /*==[ Use for Debug ]==*/
+   If True = False Then
+      Warning ("[{[" | %This._url | "]}]");
+      Warning ("[[" | &signatureVal | "]]");
+   End-If;
+   
+   %This._connectorProperties.Put("signature", CreateArrayAny(&signatureVal, %HttpHeader));
+   
+end-method;
+
+
+method BuildRequest
+   
+   &_requestMessage = CreateMessage(Message.IB_GENERIC);
+   
+   Local IBInfo &info = &_requestMessage.IBInfo;
+   Local IBConnectorInfo &connectorInfo = &info.IBConnectorInfo;
+   Local boolean &ret;
+   
+   &ret = &info.LoadConnectorProp("HTTPTARGET");
+   
+   &info.SyncServiceTimeout = 7200;
+   &info.ConnectorOverride = True;
+   
+   &connectorInfo.ConnectorClassName = "HttpTargetConnector";
+   &connectorInfo.ConnectorName = "HTTPTARGET";
+   
+   REM Local string &content = &messageBody;
+   
+   &connectorInfo.ClearConnectorProperties();
+   
+   Local integer &i = 0;
+   
+   For &i = 1 To %This._connectorProperties.Len;
+      Local string &key = %This._connectorProperties.GetKeys()[&i];
+      Local string &value = %This._connectorProperties.Get(&key)[1];
+      Local string &type = %This._connectorProperties.Get(&key)[2];
+      
+      &ret = &connectorInfo.AddConnectorProperties(&key, &value, &type);
+   End-For;
+   
+end-method;
+
+
+method SendRequest
+   /+ Returns String +/
+   
+   Local string &returnContent;
+   Local Exception &ibException;
+   
+   try
+      
+      Local Message &responseMsg = %IntBroker.ConnectorRequest(&_requestMessage, True);
+      
+      /*==[ Use for Debug ]==*/
+      If True = False Then
+         Warning ("{{[[HTTPResponseCode:" | &responseMsg.HTTPResponseCode | "]]~[[ResponseBody: " | &responseMsg.GetContentString() | "]]}}");
+      End-If;
+      
+      &ResponseMessage = &responseMsg;
+      
+      If &responseMsg = Null Or
+            &responseMsg.GetContentString() = "" Then
+         throw CreateException(262, 2162, "Null Message in ES Response");
+      Else
+         &returnContent = &ResponseMessage.GetContentString();
+      End-If;
+      
+   catch Exception &parseEx
+      
+      &returnContent = "ERROR: " | &parseEx.ToString();
+      
+   end-try;
+   
+   Return &returnContent;
+   
+end-method;
+
