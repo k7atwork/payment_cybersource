@@ -1,3 +1,8 @@
+/*--------------------[ ANU Customisations ]--------------------
+INC0394481, K7, 2021-09-09
+ - Initial Build
+---------------------------------------------------------------*/
+
 import ANU_ANZ_CYBERSOURCE:*;
 
 class preparePostRequest extends ANU_ANZ_CYBERSOURCE:parameterProcessor
@@ -17,7 +22,10 @@ private
    
 end-class;
 
-
+/*-----------------------------------------------------------
+ Public Method called from 
+ WEBLIB_ANU.ANU_ANZ_CYBRSRC.IScript_TriggerPayment 
+-----------------------------------------------------------*/
 method preparePostRequest
    /+ &inTxnRefNbr as String +/
    
@@ -44,6 +52,10 @@ method preparePostRequest
 end-method;
 
 
+/*-----------------------------------------------------------
+ Public Method called from 
+ WEBLIB_ANU.ANU_ANZ_CYBRSRC.IScript_TriggerPayment 
+-----------------------------------------------------------*/
 method post
    
    /*----------------------------*/
@@ -79,6 +91,9 @@ method post
 end-method;
 
 
+/*-----------------------------------------------------------
+ Private Method 
+-----------------------------------------------------------*/
 method init
    /+ Extends/implements ANU_ANZ_CYBERSOURCE:parameterProcessor.init +/
    
