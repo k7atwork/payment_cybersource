@@ -1,0 +1,86 @@
+import SCC_COMMON_UTILITIES:UTIL:AnyHashMap;
+import ANU_ANZ_CYBERSOURCE:Reports:*;
+import ANU_ANZ_CYBERSOURCE:Utils;
+
+import ANU_ANZ_CYBERSOURCE:paymentGatewayConfig;
+
+class AvailableReports extends ANU_ANZ_CYBERSOURCE:Reports:BaseRequest
+   method AvailableReports(&startTime As string, &endTime As string);
+   method execute() Returns array of SCC_COMMON_UTILITIES:UTIL:AnyHashMap;
+private
+   instance ANU_ANZ_CYBERSOURCE:paymentGatewayConfig &_config;
+end-class;
+
+method AvailableReports
+   /+ &startTime as String, +/
+   /+ &endTime as String +/
+   
+   /*-------------------------------------------------*/
+   /*--[ Get Payment Gateway Configuration Details ]--*/
+   /*-------------------------------------------------*/
+   %This._config = create ANU_ANZ_CYBERSOURCE:paymentGatewayConfig();
+   
+   Local string &operationName = "ANU_ANZ_GET_AVAILABLE_RPTS_GET";
+   
+   Local SCC_COMMON_UTILITIES:UTIL:AnyHashMap &uriTemplateParams = create SCC_COMMON_UTILITIES:UTIL:AnyHashMap();
+   
+   &uriTemplateParams.Put("organizationId", %This._config.merchant_id);
+   &uriTemplateParams.Put("startTime", &startTime);
+   &uriTemplateParams.Put("endTime", &endTime);
+   
+   &uriTemplateParams.Put("accept", String("application/hal+json; charset=UTF-8"));
+   
+   %Super = create ANU_ANZ_CYBERSOURCE:Reports:BaseRequest(&operationName, 1, &uriTemplateParams);
+   
+end-method;
+
+method execute
+   /+ Returns Array of SCC_COMMON_UTILITIES:UTIL:AnyHashMap +/
+   
+   %This.BuildRequest();
+   
+   Local string &responseString = %This.SendRequest();
+   
+   If All(&responseString) And
+         Left(&responseString, 6) <> "ERROR:" Then
+      
+      Local ANU_ANZ_CYBERSOURCE:Utils &_utils = create ANU_ANZ_CYBERSOURCE:Utils();
+      
+      Local JsonObject &rootObj = &_utils.parseJSONfromString(&responseString);
+      
+      Local JsonArray &arrResults = &rootObj.GetJsonArray("reportSearchResults");
+      
+      Local number &i, &j;
+      Local string &msg;
+      
+      If All(&arrResults) Then
+         
+         Local SCC_COMMON_UTILITIES:UTIL:AnyHashMap &result = create SCC_COMMON_UTILITIES:UTIL:AnyHashMap();
+         Local array of SCC_COMMON_UTILITIES:UTIL:AnyHashMap &results = CreateArrayRept(&result, 0);
+         
+         For &i = 1 To &arrResults.Size
+            Local JsonObject &resultJSON = &arrResults.GetJsonObject(&i);
+            REM &msg = &msg | &_utils.getPropertyAsString(&resultJSON, "reportName") | " @ " | &_utils.getPropertyAsString(&resultJSON, "reportId") | " : " | &_utils.getPropertyAsString(&resultJSON, "status") | Char(10);
+            &result = create SCC_COMMON_UTILITIES:UTIL:AnyHashMap();
+            
+            For &j = 1 To &resultJSON.ChildCount
+               Local string &key = &resultJSON.GetPropertyNameAt(&j);
+               Local string &value = &resultJSON.GetAsString(&key);
+               &result.Put(&key, &value);
+            End-For;
+            
+            &results.Push(&result);
+            
+         End-For;
+      End-If;
+      
+      REM Error &msg;
+      
+      Return &results;
+      
+   Else
+      Return Null;
+   End-If;
+   
+end-method;
+
