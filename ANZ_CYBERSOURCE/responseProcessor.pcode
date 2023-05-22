@@ -1,0 +1,246 @@
+import ANU_ANZ_CYBERSOURCE:*;
+
+class responseProcessor extends ANU_ANZ_CYBERSOURCE:parameterProcessor
+   method responseProcessor(&clientIsBrowser As boolean);
+   method process();
+   method print();
+   
+   property string responseString;
+   property string errorString;
+   
+private
+   
+   method init();
+   method waitBeforeRedirect(&milliSecs As number);
+   method errorLog(&errMsg As string);
+   
+   instance ANU_ANZ_CYBERSOURCE:paymentGatewayConfig &_config;
+   
+   instance array of string &signValues;
+   
+   instance boolean &isBrowser;
+   
+end-class;
+
+
+Declare Function SetDocDomainToAuthTokenDomain PeopleCode FUNCLIB_PORTAL.TEMPLATE_FUNC FieldFormula;
+
+
+method responseProcessor
+   /+ &clientIsBrowser as Boolean +/
+   
+   %Super = create ANU_ANZ_CYBERSOURCE:parameterProcessor();
+   
+   %This.signValues = CreateArrayRept("", 0);
+   
+   %This.isBrowser = &clientIsBrowser;
+   
+   If %This.isBrowser Then
+      
+      Local string &transRefID = Unencode(%Request.GetParameter("GUID"));
+      
+      If All(&transRefID) Then
+         %This.setParameterValue("req_transaction_uuid", &transRefID);
+         %This.waitBeforeRedirect(5000);
+      Else
+         %This.init();
+         %This.waitBeforeRedirect(0);
+      End-If;
+      
+   End-If;
+   
+end-method;
+
+
+method waitBeforeRedirect
+   /+ &milliSecs as Number +/
+   
+   rem %This.redirectURL = GenerateComponentPortalURL(%Portal, %Node, MenuName.ANU_ISIS, "GBL", Component.ANU_DIALECT_DR, Page.ANU_DIALECT_DR, "U");
+   Local string &pageTitle, &redirectURL;
+   
+   %This._Utils.getRedirectDetails(%This.getParameterValue("req_transaction_uuid"), &pageTitle, &redirectURL);
+   
+   Local string &domainScriptHTML = SetDocDomainToAuthTokenDomain();
+   
+   %Response.WriteLine(GetHTMLText(HTML.ANU_ANZ_PAYMENT_WAIT_PAGE, &redirectURL | "&GUID=" | %This.getParameterValue("req_transaction_uuid"), &milliSecs, &pageTitle, &domainScriptHTML));
+   
+end-method;
+
+
+method process
+   
+   If Not %This.isBrowser Then
+      %This.init();
+   End-If;
+   
+   /*-------------------------------*/
+   /*--[ Prepare Form to Process ]--*/
+   /*-------------------------------*/
+   Local string &fallBackURL;
+   &fallBackURL = GenerateComponentPortalURL(%Portal, %Node, MenuName.ANU_ISIS, "GBL", Component.ANU_CHARGES_TO_PAY, Page.ANU_CHARGES_TO_PAY, "U");
+   rem &redirectURL = GenerateComponentPortalURL(%Portal, %Node, MenuName.ANU_ISIS, "GBL", Component.ANU_DIALECT_DR, Page.ANU_DIALECT_DR, "U");
+   
+   Local number &i;
+   /*Local string &hiddenHTMLinput;
+   
+   For &i = 1 To %This.parameterValues.Len
+      &hiddenHTMLinput = &hiddenHTMLinput | Char(10) | "<input type='hidden' id='" | %This.parameterValues [&i][1] | "' name='" | %This.parameterValues [&i][1] | "' value='" | %This.parameterValues [&i][2] | "'>";
+   End-For;*/
+   
+   /*-------------------------------------*/
+   /*--[ Prepare to Validate Signature ]--*/
+   /*-------------------------------------*/
+   %This.signValues = Split(%This.getParameterValue("signed_field_names"), ",");
+   
+   Local string &comma = "";
+   Local string &msgToHash;
+   Local number &pos;
+   
+   For &i = 1 To %This.signValues.Len
+      &pos = %This.parameterValues.Find(&signValues [&i]);
+      &msgToHash = &msgToHash | &comma | %This.parameterValues [&pos][1] | "=" | %This.parameterValues [&pos][2];
+      &comma = ",";
+   End-For;
+   
+   /*------------------------------*/
+   /*--[   Validate Signature   ]--*/
+   /*------------------------------*/
+   Local string &hashInBase64 = %This._Utils.HmacSHA256_JAVA(&msgToHash, %This._config.secret_key);
+   
+   /*------------------------------------*/
+   /*--[ Navigate to Response Process ]--*/
+   /*------------------------------------*/
+   Local string &pageTitle, &redirectURL;
+   %This._Utils.getRedirectDetails(%This.getParameterValue("req_transaction_uuid"), &pageTitle, &redirectURL);
+   
+   If RTrim(&hashInBase64, "=") = %This.getParameterValue("signature") Then
+      If %This.isBrowser Then
+         %Response.Write(GetHTMLText(HTML.ANU_ANZ_CYBRSRC_RESP_TRGR, "", &fallBackURL, &pageTitle));
+         %Response.RedirectURL(&redirectURL | "&GUID=" | %This.getParameterValue("req_transaction_uuid"));
+      Else
+         %This.errorLog("Success !!");
+      End-If;
+   Else
+      
+      %This.errorLog("Error in Signature Verification.");
+      %This.errorLog(Char(10) | "(" | RTrim(&hashInBase64, "=") | " <> " | %This.getParameterValue("signature") | ")");
+      
+   End-If;
+   
+end-method;
+
+
+method init
+   /+ Extends/implements ANU_ANZ_CYBERSOURCE:parameterProcessor.init +/
+   
+   /*-------------------------------------------------*/
+   /*--[ Get Payment Gateway Configuration Details ]--*/
+   /*-------------------------------------------------*/
+   %This._config = create ANU_ANZ_CYBERSOURCE:paymentGatewayConfig();
+   
+   /*-------------------------------------------*/
+   /*--[ Read response & extract parameteres ]--*/
+   /*-------------------------------------------*/
+   Local string &contentBody;
+   
+   If %This.isBrowser Then
+      &contentBody = Unencode(%Request.GetContentBody());
+   Else
+      &contentBody = %This.responseString;
+   End-If;
+   
+   Local array of string &paramPairs = Split(&contentBody, "&");
+   
+   Local number &i;
+   
+   For &i = 1 To &paramPairs.Len
+      %This.parameterValues.Push(Split(&paramPairs [&i], "="));
+   End-For;
+   
+   REM ---------[ Use to Debug ]----------;
+   If %This.isBrowser Then
+      REM %This.print();
+   End-If;
+   REM -----------------------------------;
+   
+   /*--[ Replace '+' in message value ]--*/
+   %This.setParameterValue("message", Substitute(%This.getParameterValue("message"), "+", " "));
+   %This.setParameterValue("req_bill_to_address_line1", Substitute(%This.getParameterValue("req_bill_to_address_line1"), "+", " "));
+   
+   Local JsonObject &responseAsJSON = %This._Utils.prepareJSONfromArray(%This.parameterValues);
+   
+   REM ---------[ Use to Debug ]----------;
+   If %This.isBrowser Then
+      REM %This._Utils.print(&responseAsJSON);
+   End-If;
+   REM -----------------------------------;
+   
+   /*-----------------------------*/
+   /*--[ Update values into DB ]--*/
+   /*-----------------------------*/
+   Local string &transaction_uuid = %This.getParameterValue("req_transaction_uuid");
+   
+   If All(&transaction_uuid) Then
+      
+      Local Record &recTrans = CreateRecord(Record.ANU_ANZ_TRANSAC);
+      &recTrans.GUID.Value = &transaction_uuid;
+      &recTrans.IB_SOAPRESP.Value = &responseAsJSON.ToString();
+      &recTrans.IB_STATUS_IND_GUI.Value = "1"; /*-[ IB Handler received Response ]--*/
+      
+      If Not &recTrans.SelectByKey( False) Then
+         %This.errorLog("Invalid response received ! - " | &transaction_uuid);
+      Else
+         If Not %This.isBrowser Then;
+            If Not &recTrans.Save() Then
+               %This.errorLog("Update of reponse to DB failed !");
+            Else
+               %This.errorLog("Updated response to DB successfully !");
+            End-If;
+         End-If;
+      End-If;
+      
+   Else
+      %This.errorLog("Invalid response received !");
+   End-If;
+   
+end-method;
+
+
+method print
+   
+   /*--[ Display Response Parameter values ]--*/
+   Local string &char10 = "<br/>";
+   %Response.WriteLine("<b>Response Parameters</b><br/>");
+   
+   Local string &htmlString = "<table border=1>" | Char(10);
+   Local number &i;
+   
+   Local array of string &paramNames = %This.getParameterNames();
+   
+   For &i = 1 To &paramNames.Len
+      &htmlString = &htmlString | "<tr><td>" | &paramNames [&i] | "</td><td>" | %This.getParameterValue(&paramNames [&i]) | "</td></tr>" | Char(10);
+   End-For;
+   
+   &htmlString = &htmlString | "</table>" | Char(10);
+   
+   %Response.WriteLine(&htmlString);
+   
+   %Response.WriteLine("<br/><b>Query(URL) Parameters</b><br/>");
+   %Response.WriteLine((%Request.GetParameterNames()).Join(&char10));
+   
+end-method;
+
+
+method errorLog
+   /+ &errMsg as String +/
+   
+   If %This.isBrowser Then
+      %This._Utils.errorLog(&errMsg | "<br/><br/> - Contact SBS Admin for support.<br/><br/>Ref: " | %This.getParameterValue("req_transaction_uuid"));
+   Else
+      If %This.errorString <> "" Then
+         %This.errorString = %This.errorString | Char(10);
+      End-If;
+      %This.errorString = %This.errorString | &errMsg;
+   End-If;
+   
+end-method;
