@@ -1,0 +1,174 @@
+import ANU_ANZ_CYBERSOURCE:Utils;
+import ANU_ANZ_CYBERSOURCE:Reports:*;
+
+class BatchReconilliation
+   method executeRecon(&inTransRef As string, &inPaymntRef As string) Returns boolean;
+   
+   method InitRecon(&inTransRef As string) Returns boolean;
+   method fetchPaymentDetails(&Emplid As string out, &SA_ID_Type As string out, &Payment_type As string out, &Payment_Nbr As string out, &purchaseAmount As number out, &status_val As string out, &qsiResponseCode As string out, &receiptNo As string out) Returns boolean;
+   
+private
+   
+   method Init(&inTransRef As string);
+   
+   instance JsonObject &jsonResp;
+   instance ANU_ANZ_CYBERSOURCE:Utils &_Utils;
+   
+   instance Record &transRec;
+   
+end-class;
+
+
+method Init
+   /+ &inTransRef as String +/
+   
+   Local string &transRefID;
+   SQLExec("SELECT GUID FROM %Table(ANU_ANZ_TRANSAC) WHERE ANU_TRANS_REF=:1", &inTransRef, &transRefID);
+   
+   &_Utils = create ANU_ANZ_CYBERSOURCE:Utils();
+   
+   %This.transRec = CreateRecord(Record.ANU_ANZ_TRANSAC);
+   %This.transRec.GUID.Value = &transRefID;
+   
+end-method;
+
+
+method executeRecon
+   /+ &inTransRef as String, +/
+   /+ &inPaymntRef as String +/
+   /+ Returns Boolean +/
+   
+   %This.Init(&inTransRef);
+   
+   If %This.transRec.SelectByKey( False) Then
+      
+      If &transRec.IB_STATUS_IND_GUI.Value = "0" And
+            None(&transRec.IB_SOAPRESP.Value) Then
+         
+         Local string &TransDtls = (create ANU_ANZ_CYBERSOURCE:Reports:TransactionDetails(&inPaymntRef)).execute();
+         
+         If Find("FilePath: ", &TransDtls) = 1 Then
+            MessageBox(0, "", 0, 0, &TransDtls);
+         Else
+            
+            %This.transRec.IB_SOAPRESP.Value = &TransDtls;
+            %This.transRec.IB_STATUS_IND_GUI.Value = "2"; /*-[ Batch Recon received Response ]--*/
+            
+            If Not %This.transRec.Save() Then
+               Return False;
+               /*%This.errorLog("Update of reponse to DB failed !");*/
+            Else
+               /*%This.errorLog("Updated response to DB successfully !");*/
+               Return True;
+            End-If;
+            
+         End-If;
+         
+      End-If;
+      
+   End-If;
+   
+   Return False;
+   
+end-method;
+
+
+method InitRecon
+   /+ &inTransRef as String +/
+   /+ Returns Boolean +/
+   
+   %This.Init(&inTransRef);
+   
+   If %This.transRec.SelectByKey() Then
+      
+      If None(&transRec.IB_SOAPRESP.Value) Then
+         MessageBox(0, "", 25600, 45, "", "Response from the Payment Gateway has not been received." | Char(10) | "Please review transaction in Payment gateway admin portal.");
+      Else
+         %This.jsonResp = &_Utils.parseJSONfromString(&transRec.IB_SOAPRESP.Value);
+         REM WinMessage(%This.jsonResp.ToString(), 0);
+      End-If;
+      
+      Return False;
+      
+   Else
+      /*--[ Return Error Exists ]--*/
+      Return True;
+   End-If;
+   
+end-method;
+
+
+method fetchPaymentDetails
+   /+ &Emplid as String out, +/
+   /+ &SA_ID_Type as String out, +/
+   /+ &Payment_type as String out, +/
+   /+ &Payment_Nbr as String out, +/
+   /+ &purchaseAmount as Number out, +/
+   /+ &status_val as String out, +/
+   /+ &qsiResponseCode as String out, +/
+   /+ &receiptNo as String out +/
+   /+ Returns Boolean +/
+   
+   Local string &TxnRefNbr = %This.transRec.ANU_TRANS_REF.Value;
+   
+   If All(&TxnRefNbr) Then
+      
+      Local number &find = Find("-", &TxnRefNbr);
+      
+      &Emplid = Substring(&TxnRefNbr, 1, &find - 1);
+      &Payment_type = Substring(&TxnRefNbr, &find + 1, 1);
+      &SA_ID_Type = Substring(&TxnRefNbr, &find + 3, 1);
+      &Payment_Nbr = Substring(&TxnRefNbr, &find + 4, Len(&TxnRefNbr) - (&find + 3));
+      
+      Local JsonObject &appInfo = &_Utils.getPropertyAsObject(%This.jsonResp, "applicationInformation");
+      
+      Local string &respReasonCode = String(&appInfo.GetNumber("reasonCode"));
+      
+      Local string &resultType;
+      SQLExec("SELECT UPPER(RESULT_TYPE) FROM %Table(:1) WHERE ANU_PAYMNT_GATEWAY = 'CYBERSRC' AND ANU_PAYMNT_RESP_CD = :2", Record.ANU_PAYMNT_RESP, &respReasonCode, &resultType);
+      
+      Evaluate &resultType
+      When = "SUCCESS"
+         &status_val = "A";
+         Break;
+      When = "DECLINED"
+         &status_val = "R";
+         Break;
+      When = "REVIEW"
+      When = "ERROR"
+         &status_val = "R";
+         Break;
+      When = "CANCELLED"
+         &status_val = "C";
+         Break;
+      End-Evaluate;
+      
+      Local JsonObject &orderInfo = &_Utils.getPropertyAsObject(%This.jsonResp, "orderInformation");
+      Local JsonObject &amountDetails = &_Utils.getPropertyAsObject(&orderInfo, "amountDetails");
+      
+      &purchaseAmount = Value(%This._Utils.getPropertyAsString(&amountDetails, "totalAmount")) * 100;
+      
+      &qsiResponseCode = &respReasonCode;
+      
+      &receiptNo = %This._Utils.getPropertyAsString(%This.jsonResp, "id");
+      
+      /*--[ Handle Cancel action ]--*/
+      If &status_val = "C" Then
+         &qsiResponseCode = "CANC";
+         &receiptNo = "N/A";
+      End-If;
+      
+      rem &status_val = "S";
+      rem WinMessage(&Emplid | Char(10) | &Payment_type | Char(10) | &SA_ID_Type | Char(10) | &Payment_Nbr, 0);
+      rem &Payment_Nbr = "5";
+      
+      Return False;
+      
+   Else
+      
+      Return True;
+      
+   End-If;
+   
+end-method;
+
