@@ -1,3 +1,8 @@
+/*--------------------[ ANU Customisations ]--------------------
+INC0394481, K7, 2021-09-09
+ - Initial Build
+---------------------------------------------------------------*/
+
 import ANU_ANZ_CYBERSOURCE:Utils;
 import ANU_ANZ_CYBERSOURCE:Reports:BatchReconilliation;
 
@@ -18,7 +23,10 @@ end-class;
 
 Global number &resp_attempt;
 
-
+/*-----------------------------------------------------------
+ Public Method could be called from 
+ * ANU_ISIS.ANU_DIALECT_DR.PreBuild
+-----------------------------------------------------------*/
 method Init
    /+ Returns Boolean +/
    
@@ -63,7 +71,11 @@ method Init
 end-method;
 
 
-
+/*-----------------------------------------------------------
+ Public Method could be called from 
+ * ANU_SA.ANU_CSS00381_RECON.SavePreChange
+ * ANU_CSS00414 - Application Engine
+-----------------------------------------------------------*/
 method InitRecon
    /+ &inTransRef as String +/
    /+ Returns Boolean +/
@@ -81,7 +93,16 @@ method InitRecon
       &resp_attempt = 0;
       
       If None(&transRec.IB_SOAPRESP.Value) Then
-         MessageBox(0, "", 25600, 45, "", "Response from the Payment Gateway has not been received." | Char(10) | "Please review transaction in Payment gateway admin portal.");
+         Evaluate %Component
+         When = Component.ANU_DIALECT_DR
+         When = Component.ANU_CSS00381_RECON
+            /*-[ Display an error if executed from online page ]--*/
+            MessageBox(0, "", 25600, 45, "", "Response from the Payment Gateway has not been received." | Char(10) | "Please review transaction in Payment gateway admin portal.");
+            Break;
+         When-Other
+            /*-[ Log a Message if executed from AE Program ]--*/
+            MessageBox(0, "", 25600, 44, "", "Response from the Payment Gateway has not been received. Please review transaction in Payment gateway admin portal.");
+         End-Evaluate;
       Else
          /*--[ Received Response Successfully ]--*/
          Return %This.prepareForProcessing(&transRec);
@@ -97,6 +118,9 @@ method InitRecon
 end-method;
 
 
+/*-----------------------------------------------------------
+ Private Method 
+-----------------------------------------------------------*/
 method prepareForProcessing
    /+ &inTransRec as Record +/
    /+ Returns Boolean +/
@@ -123,6 +147,13 @@ method prepareForProcessing
    
 end-method;
 
+
+/*-----------------------------------------------------------
+ Public Method could be called from 
+ * ANU_ISIS.ANU_DIALECT_DR.PreBuild
+ * ANU_SA.ANU_CSS00381_RECON.SavePreChange
+ * ANU_CSS00414 - Application Engine
+-----------------------------------------------------------*/
 method fetchPaymentDetails
    /+ &Emplid as String out, +/
    /+ &SA_ID_Type as String out, +/
