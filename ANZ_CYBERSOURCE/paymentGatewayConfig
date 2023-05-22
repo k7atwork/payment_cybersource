@@ -1,8 +1,3 @@
-/*--------------------[ ANU Customisations ]--------------------
-INC0394481, K7, 2021-09-09
- - Initial Build
----------------------------------------------------------------*/
-
 class paymentGatewayConfig
    method paymentGatewayConfig();
    
@@ -28,7 +23,8 @@ method paymentGatewayConfig
    /*--[ Fetch Details from Node Properties]--*/
    Local array of array of string &keyValPairs = CreateArrayRept(CreateArrayRept("", 0), 0);
    
-   Local SQL &sql = CreateSQL("SELECT PROPNAME, COMMENTS FROM PSNODEPROP WHERE MSGNODENAME = :1", Node.ANU_ANZ_PYMNT_GATEWAY);
+   REM Local SQL &sql = CreateSQL("SELECT PROPNAME, COMMENTS FROM PSNODEPROP WHERE MSGNODENAME = :1", Node.ANU_ANZ_PYMNT_GATEWAY);
+   Local SQL &sql = CreateSQL("SELECT PROPNAME, COMMENTS FROM PSNODEPROP WHERE MSGNODENAME = :1", Node.ANU_ANZ_PYMNT_GW_DEVL);
    
    Local string &propName, &propValue;
    
