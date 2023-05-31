@@ -1,0 +1,114 @@
+/*--------------------[ ANU Customisations ]--------------------
+INC0394481, K7, 2023-05-25
+ - Initial Build
+---------------------------------------------------------------*/
+import ANU_ANZ_CYBERSOURCE:Utils;
+import ANU_PERSON:Biographical:Bio;
+
+class paymentBillingInformation extends ANU_PERSON:Biographical:Bio
+   method paymentBillingInformation(&inEMPLID As string);
+   
+   method Summary() Returns Rowset;
+   method Addresses(&Address_Type As string, &inEFFDT As date) Returns Rowset;
+   
+   method get(&inFldName As string) Returns any;
+   
+private
+   
+   method validateReqFields(&inFldName As string);
+   
+   instance Rowset &rsSummary;
+   instance Rowset &rsAddress;
+   
+end-class;
+
+
+method paymentBillingInformation
+   /+ &inEMPLID as String +/
+   
+   %Super = create ANU_PERSON:Biographical:Bio(&inEMPLID);
+   
+end-method;
+
+
+method get
+   /+ &inFldName as String +/
+   /+ Returns Any +/
+   
+   Local string &outStr;
+   
+   Evaluate &inFldName
+   When = Field.FIRST_NAME
+   When = Field.LAST_NAME
+      &outStr = %This.Summary()(1).ANU_PERSON_BIO.GetField(@("FIELD." | &inFldName)).Value;
+      Break;
+   When = Field.ADDRESS1
+   When = Field.CITY
+   When = Field.STATE
+   When = Field.POSTAL
+      &outStr = %This.Addresses("HOME", %Date)(1).ADDRESSES.GetField(@("FIELD." | &inFldName)).Value;
+      Break;
+   When = Field.COUNTRY
+      Local string &country, &2Char_Country;
+      &country = %This.Addresses("HOME", %Date)(1).ADDRESSES.GetField(@("FIELD." | &inFldName)).Value;
+      SQLExec("SELECT COUNTRY_2CHAR FROM PS_COUNTRY_TBL WHERE COUNTRY = :1", &country, &2Char_Country);
+      &outStr = &2Char_Country;
+      Break;
+   When = Field.EMAIL_ADDR
+      &outStr = %This.EmailAddress("CAMP");
+   When-Other
+      &outStr = "";
+   End-Evaluate;
+   
+   Return LTrim(RTrim(&outStr));
+   REM Return "";
+   
+end-method;
+
+
+method validateReqFields
+   /+ &inFldName as String +/
+   
+   Evaluate &inFldName
+   When = Field.FIRST_NAME
+   When = Field.LAST_NAME
+   When = Field.ADDRESS1
+   When = Field.CITY
+   When = Field.STATE
+   When = Field.POSTAL
+   When = Field.COUNTRY
+   When = Field.EMAIL_ADDR
+   End-Evaluate;
+   
+end-method;
+
+
+method Summary
+   /+ Returns Rowset +/
+   
+   If %This.rsSummary = Null Then
+      %This.rsSummary = %Super.Summary();
+   End-If;
+   
+   Return %This.rsSummary;
+   
+end-method;
+
+
+method Addresses
+   /+ &Address_Type as String, +/
+   /+ &inEFFDT as Date +/
+   /+ Returns Rowset +/
+   /+ Extends/implements ANU_PERSON:Biographical:Bio.Addresses +/
+   
+   If %This.rsAddress = Null Then
+      %This.rsAddress = %Super.Addresses("CAMP", %Date);
+      
+      If None(%This.rsAddress.GetRow(1).ADDRESSES.EMPLID.Value) Then
+         %This.rsAddress = %Super.Addresses("HOME", %Date);
+      End-If;
+   End-If;
+   
+   Return %This.rsAddress;
+   
+end-method;
