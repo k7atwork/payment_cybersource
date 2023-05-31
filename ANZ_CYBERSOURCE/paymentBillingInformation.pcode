@@ -1,7 +1,3 @@
-/*--------------------[ ANU Customisations ]--------------------
-INC0394481, K7, 2023-05-25
- - Initial Build
----------------------------------------------------------------*/
 import ANU_ANZ_CYBERSOURCE:Utils;
 import ANU_PERSON:Biographical:Bio;
 
