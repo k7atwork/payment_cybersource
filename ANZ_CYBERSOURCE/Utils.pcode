@@ -1,3 +1,9 @@
+/*--------------------[ ANU Customisations ]--------------------
+INC0394481, K7, 2021-09-09
+ - Initial Build
+---------------------------------------------------------------*/
+import ANU_SYSTEM:Environment;
+
 class Utils
    method prepareJSONfromArray(&inArray As array of array of string) Returns JsonObject;
    method parseJSONfromString(&inJSONstring As string) Returns JsonObject;
@@ -19,12 +25,22 @@ class Utils
    
    method getDateTimeInUTC(&inDateTime As datetime) Returns string;
    
+   method getPaymentConfigRecord() Returns Record;
+   
+   method removePortFromURL(&inURL As string) Returns string;
+   
+   property number retryAttempts get;
+   property number waitInSecs get;
+   
+   property boolean isEnvProduction get;
+   
 end-class;
 
 
 Declare Function GetUniHeaderHTML PeopleCode WEBLIB_PORTAL.PORTAL_HEADER FieldFormula;
 Declare Function SetDocDomainToAuthTokenDomain PeopleCode FUNCLIB_PORTAL.TEMPLATE_FUNC FieldFormula;
 
+Component Record &recConfig;
 
 method errorLog
    /+ &errMsg as String +/
@@ -338,3 +354,94 @@ method getDateTimeInUTC
    Return &outDateTime;
    
 end-method;
+
+
+method getPaymentConfigRecord
+   /+ Returns Record +/
+   
+   If &recConfig = Null Then
+      &recConfig = CreateRecord(Record.ANU_SF_CORP_INF);
+      &recConfig.ANU_INSTITUTE_ID.Value = "1";
+      SQLExec("%SelectByKeyEffdt(:1,:2)", &recConfig, %Date, &recConfig);
+   End-If;
+   
+   Return &recConfig;
+   
+end-method;
+
+
+get retryAttempts
+   /+ Returns Number +/
+   
+   Local number &retryAtmpts = %This.getPaymentConfigRecord().RETRYCOUNT.Value;
+   
+   If &retryAtmpts <= 0 Then
+      &retryAtmpts = 6;
+   End-If;
+   
+   Return &retryAtmpts;
+   
+end-get;
+
+
+get waitInSecs
+   /+ Returns Number +/
+   
+   Local number &waitTime = %This.getPaymentConfigRecord().TIMEOUT.Value;
+   
+   If &waitTime > 0 Then
+      Return &waitTime * 1000;
+   Else
+      Return 5000;
+   End-If;
+   
+end-get;
+
+
+method removePortFromURL
+   /+ &inURL as String +/
+   /+ Returns String +/
+   
+   Local string &respURL, &urlScheme, &port;
+   
+   Local number &pos1, &pos2;
+   
+   &pos1 = Find(":", &inURL);
+   
+   If &pos1 > 0 Then
+      &urlScheme = Substring(&inURL, 1, &pos1 - 1);
+      
+      Evaluate &urlScheme
+      When = "http"
+      When = "https"
+         &pos1 = Find(":", &inURL, &pos1 + 1);
+      End-Evaluate;
+   End-If;
+   
+   &pos2 = Find("/", &inURL, &pos1);
+   
+   If &pos1 > 0 And
+         &pos2 > &pos1 Then
+      &port = Substring(&inURL, &pos1, &pos2 - &pos1);
+      &respURL = Substitute(&inURL, &port, "");
+   Else
+      &respURL = &inURL;
+   End-If;
+   
+   Return &respURL;
+   
+end-method;
+
+
+get isEnvProduction
+   /+ Returns Boolean +/
+   
+   Local ANU_SYSTEM:Environment &env = create ANU_SYSTEM:Environment();
+   
+   If &env.SystemType = "PRD" Then
+      Return True;
+   End-If;
+   
+   Return False;
+   
+end-get;
