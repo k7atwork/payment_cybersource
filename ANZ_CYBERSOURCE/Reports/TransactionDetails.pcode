@@ -12,6 +12,7 @@ private
    instance string &TransID;
 end-class;
 
+
 method TransactionDetails
    /+ &in_TransID as String +/
    
@@ -52,9 +53,11 @@ method execute
       Local string &filePath = &outputPath | "CYBRSRC_" | %This.TransID | "_" | %Datetime | ".json";
       
       Local File &TransDtlsFile = GetFile(&filePath, "W", %FilePath_Absolute);
-      &TransDtlsFile.WriteString(&responseString);
       
-      &TransDtlsFile.Close();
+      If &TransDtlsFile.IsOpen Then
+         &TransDtlsFile.WriteString(&responseString);
+         &TransDtlsFile.Close();
+      End-If;
       
       Return "FilePath: " | &filePath;
       
@@ -66,4 +69,3 @@ method execute
    End-If;
    
 end-method;
-
