@@ -42,9 +42,10 @@ method Init
       
       /*--[ If response not received wait for a few secs & retry upto 6 times ]--*/
       If None(&transRec.IB_SOAPRESP.Value) And
-            &resp_attempt < 1 Then
+            &resp_attempt < &_Utils.retryAttempts Then
          &resp_attempt = &resp_attempt + 1;
          ViewURL(GenerateScriptContentURL(%Portal, %Node, Record.WEBLIB_ANU, Field.ANU_ANZ_CYBRSRC, "FieldFormula", "IScript_responseProcessor") | "?GUID=" | EncodeURLForQueryString(&transRefID) | "&resp_attempt=" | &resp_attempt, False);
+         Exit (0); /*--[ Stop Further processing and continue with ViewURL ]--*/
       Else
          /*--[ Upon receiving the response or after trying 6 attempts ]--*/
          &resp_attempt = 0;
@@ -102,6 +103,8 @@ method InitRecon
          When-Other
             /*-[ Log a Message if executed from AE Program ]--*/
             MessageBox(0, "", 25600, 44, "", "Response from the Payment Gateway has not been received. Please review transaction in Payment gateway admin portal.");
+            /*--[ Return Error Exists to stop proceeding further ]--*/
+            Return True;
          End-Evaluate;
       Else
          /*--[ Received Response Successfully ]--*/
