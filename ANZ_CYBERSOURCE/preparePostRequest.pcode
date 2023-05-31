@@ -115,18 +115,20 @@ method init
    &signed_date_time = %This._Utils.getDateTimeInUTC(%Datetime);
    
    Local string &returnURL = GenerateScriptContentURL(%Portal, %Node, Record.WEBLIB_ANU, Field.ANU_ANZ_CYBRSRC, "FieldFormula", "IScript_responseProcessor") | "?postDataBin=y";
-   rem &returnURL = "https://dev2.esig.anu.edu.au:10101/PSIGW/RESTListeningConnector/CSDEVL/ANU_ANZ_PAYMENT_RESPONSE.v1/doResponse";
    
    /*------------------------------*/
    /*--[ Prepare to Post values ]--*/
    /*------------------------------*/
    
+   /*====================================*/
+   /*==[ Required Payment Information ]==*/
+   /*====================================*/
    %This.parameterValues.Push(CreateArray("access_key", %This._config.access_key));
    %This.parameterValues.Push(CreateArray("profile_id", %This._config.profile_id));
    %This.parameterValues.Push(CreateArray("transaction_uuid", &transaction_uuid));
    rem %This.parameterValues.Push(CreateArray("signed_field_names", "access_key,profile_id,transaction_uuid,signed_field_names,unsigned_field_names,signed_date_time,locale,transaction_type,reference_number,amount,currency"));
-   %This.parameterValues.Push(CreateArray("signed_field_names", "access_key,profile_id,transaction_uuid,signed_field_names,unsigned_field_names,signed_date_time,locale,transaction_type,reference_number,amount,currency,bill_to_address_line1,bill_to_address_city,bill_to_address_postal_code,bill_to_address_state,bill_to_address_country,bill_to_email,bill_to_forename,bill_to_surname,invoiceHeader_merchantDescriptorCity"));
-   %This.parameterValues.Push(CreateArray("unsigned_field_names", ""));
+   %This.parameterValues.Push(CreateArray("signed_field_names", "access_key,profile_id,transaction_uuid,signed_field_names,unsigned_field_names,signed_date_time,locale,transaction_type,reference_number,amount,currency,bill_to_address_line1,bill_to_address_city,bill_to_address_postal_code,bill_to_address_state,bill_to_address_country,bill_to_email,bill_to_forename,bill_to_surname,invoiceHeader_merchantDescriptorCity,override_custom_receipt_page"));
+   %This.parameterValues.Push(CreateArray("unsigned_field_names", "override_backoffice_post_url,override_custom_cancel_page"));
    %This.parameterValues.Push(CreateArray("signed_date_time", &signed_date_time));
    %This.parameterValues.Push(CreateArray("locale", "en"));
    rem %This.parameterValues.Push(CreateArray("transaction_type", "authorization"));
@@ -136,24 +138,40 @@ method init
    %This.parameterValues.Push(CreateArray("currency", "AUD"));
    %This.parameterValues.Push(CreateArray("signature", ""));
    
-   /*
-   %This.parameterValues.Push(CreateArray("override_backoffice_post_url", &returnURL));   
-   %This.parameterValues.Push(CreateArray("override_backoffice_post_url", "https://dev2.esig.anu.edu.au/PSIGW/RESTListeningConnector/CSDEVL/ANU_ANZ_PAYMENT_RESPONSE.v1/doResponse"));
-   */
-   %This.parameterValues.Push(CreateArray("override_backoffice_post_url", %IntBroker.GetURL("ANU_ANZ_PAYMENT_RESPONSE_POST", 1, Null, True)));
-   rem Error %IntBroker.GetURL("ANU_ANZ_PAYMENT_RESPONSE_POST", 1, Null, True);
+   /*=======================================*/
+   /*==[ Overrides Configuration Details ]==*/
+   /*=======================================*/
+   /*--[ Use for Debug ]--*/
+   rem %This.parameterValues.Push(CreateArray("override_backoffice_post_url", "https://dev2.esig.anu.edu.au/PSIGW/RESTListeningConnector/CSDEVL/ANU_ANZ_PAYMENT_RESPONSE.v1/doResponse"));
+   rem Error "override_backoffice_post_url: " | %This._Utils.removePortFromURL(%IntBroker.GetURL("ANU_ANZ_PAYMENT_RESPONSE_POST", 1, Null, True));
    rem %This.parameterValues.Push(CreateArray("override_backoffice_post_url", "https://webhook.site/679fcb31-d785-4563-aad2-3a9d43320576"));
+   /*---------------------*/
+   %This.parameterValues.Push(CreateArray("override_backoffice_post_url", %This._Utils.removePortFromURL(%IntBroker.GetURL("ANU_ANZ_PAYMENT_RESPONSE_POST", 1, Null, True)))); /* Sent as Unsigned */
+   %This.parameterValues.Push(CreateArray("override_custom_cancel_page", &returnURL)); /* Sent as Unsigned */
+   %This.parameterValues.Push(CreateArray("override_custom_receipt_page", &returnURL)); /* Need to be Signed */
    
-   rem %This.parameterValues.Push(CreateArray("override_custom_cancel_page", &returnURL));
-   
-   %This.parameterValues.Push(CreateArray("bill_to_address_line1", "Biology Place"));
+   /*===========================*/
+   /*==[ Billing Information ]==*/
+   /*===========================*/
+   /*%This.parameterValues.Push(CreateArray("bill_to_address_line1", "Biology Place"));
    %This.parameterValues.Push(CreateArray("bill_to_address_city", "Canberra"));
    %This.parameterValues.Push(CreateArray("bill_to_address_postal_code", "2601"));
    %This.parameterValues.Push(CreateArray("bill_to_address_state", "ACT"));
    %This.parameterValues.Push(CreateArray("bill_to_address_country", "AU"));
    %This.parameterValues.Push(CreateArray("bill_to_email", "f8459@anu.edu.au"));
    %This.parameterValues.Push(CreateArray("bill_to_forename", "ANU"));
-   %This.parameterValues.Push(CreateArray("bill_to_surname", "User"));
+   %This.parameterValues.Push(CreateArray("bill_to_surname", "User"));*/
+   
+   Local ANU_ANZ_CYBERSOURCE:paymentBillingInformation &billInfo = create ANU_ANZ_CYBERSOURCE:paymentBillingInformation(%This._Utils.parsePaymentReference(%This.pymntRefNbr, "COMMON_ID"));
+   
+   %This.parameterValues.Push(CreateArray("bill_to_address_line1", &billInfo.get(Field.ADDRESS1)));
+   %This.parameterValues.Push(CreateArray("bill_to_address_city", &billInfo.get(Field.CITY)));
+   %This.parameterValues.Push(CreateArray("bill_to_address_postal_code", &billInfo.get(Field.POSTAL)));
+   %This.parameterValues.Push(CreateArray("bill_to_address_state", &billInfo.get(Field.STATE)));
+   %This.parameterValues.Push(CreateArray("bill_to_address_country", &billInfo.get(Field.COUNTRY)));
+   %This.parameterValues.Push(CreateArray("bill_to_email", &billInfo.get(Field.EMAIL_ADDR)));
+   %This.parameterValues.Push(CreateArray("bill_to_forename", &billInfo.get(Field.FIRST_NAME)));
+   %This.parameterValues.Push(CreateArray("bill_to_surname", &billInfo.get(Field.LAST_NAME)));
    
    %This.parameterValues.Push(CreateArray("invoiceHeader_merchantDescriptorCity", "Canberra"));
    
