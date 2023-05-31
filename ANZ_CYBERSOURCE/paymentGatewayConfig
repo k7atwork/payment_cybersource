@@ -1,3 +1,9 @@
+/*--------------------[ ANU Customisations ]--------------------
+INC0394481, K7, 2021-09-09
+ - Initial Build
+---------------------------------------------------------------*/
+import ANU_ANZ_CYBERSOURCE:Utils;
+
 class paymentGatewayConfig
    method paymentGatewayConfig();
    
@@ -16,15 +22,19 @@ private
    
    instance array of array of string &connectorProp;
    
+   method executeValidation();
+   
 end-class;
 
 method paymentGatewayConfig
+   
+   Local Record &recConfig = (create ANU_ANZ_CYBERSOURCE:Utils()).getPaymentConfigRecord();
    
    /*--[ Fetch Details from Node Properties]--*/
    Local array of array of string &keyValPairs = CreateArrayRept(CreateArrayRept("", 0), 0);
    
    REM Local SQL &sql = CreateSQL("SELECT PROPNAME, COMMENTS FROM PSNODEPROP WHERE MSGNODENAME = :1", Node.ANU_ANZ_PYMNT_GATEWAY);
-   Local SQL &sql = CreateSQL("SELECT PROPNAME, COMMENTS FROM PSNODEPROP WHERE MSGNODENAME = :1", Node.ANU_ANZ_PYMNT_GW_DEVL);
+   Local SQL &sql = CreateSQL("SELECT PROPNAME, COMMENTS FROM PSNODEPROP WHERE MSGNODENAME = :1", &recConfig.IB_MSGNODENAME.Value);
    
    Local string &propName, &propValue;
    
@@ -62,13 +72,15 @@ method paymentGatewayConfig
    
    Local Message &requestMsg = CreateMessage(Operation.IB_GENERIC);
    &requestMsg.IBInfo.IBConnectorInfo.ConnectorName = "ESHTTPTARGET";
-   Local boolean &BRtn = &requestMsg.IBInfo.LoadConnectorPropFromNode(Node.ANU_ANZ_PYMNT_GATEWAY);
+   Local boolean &BRtn = &requestMsg.IBInfo.LoadConnectorPropFromNode(&recConfig.IB_MSGNODENAME.Value);
    
    Local number &count = &requestMsg.IBInfo.IBConnectorInfo.GetNumberOfConnectorProperties();
    
    For &i = 1 To &count
       %This.connectorProp.Push(CreateArray(&requestMsg.IBInfo.IBConnectorInfo.GetConnectorPropertiesName(&i), &requestMsg.IBInfo.IBConnectorInfo.GetConnectorPropertiesValue(&i)));
    End-For;
+   
+   %This.executeValidation();
    
 end-method;
 
@@ -84,5 +96,22 @@ method getParameterValue
    End-If;
    
    Return "";
+   
+end-method;
+
+
+method executeValidation
+   
+   Local boolean &isTestPaymentInstance = (Find("test", %This.getParameterValue("URL")) > 0);
+   
+   If (create ANU_ANZ_CYBERSOURCE:Utils()).isEnvProduction Then
+      If &isTestPaymentInstance Then
+         Error "Payment Gateway Configuration in pointing to test payment instance. Please update.";
+      End-If;
+   Else
+      If Not &isTestPaymentInstance Then
+         Error "Payment Gateway Configuration in pointing to live payment instance. Please update.";
+      End-If;
+   End-If;
    
 end-method;
