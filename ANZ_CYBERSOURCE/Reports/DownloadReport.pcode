@@ -1,3 +1,8 @@
+/*--------------------[ ANU Customisations ]--------------------
+INC0394481, K7, 2021-09-09
+ - Initial Build
+---------------------------------------------------------------*/
+
 import SCC_COMMON_UTILITIES:UTIL:AnyHashMap;
 import ANU_ANZ_CYBERSOURCE:Reports:*;
 import ANU_ANZ_CYBERSOURCE:Utils;
@@ -11,6 +16,7 @@ private
    instance ANU_ANZ_CYBERSOURCE:paymentGatewayConfig &_config;
    instance string &reportName;
 end-class;
+
 
 method DownloadReport
    /+ &in_reportDate as String, +/
@@ -51,11 +57,12 @@ method execute
    Local string &filePath = &outputPath | %This.reportName | "_" | %Datetime | ".csv";
    
    Local File &reportFile = GetFile(&filePath, "W", %FilePath_Absolute);
-   &reportFile.WriteString(&responseString);
    
-   &reportFile.Close();
+   If &reportFile.IsOpen Then
+      &reportFile.WriteString(&responseString);
+      &reportFile.Close();
+   End-If;
    
    Return &filePath;
    
 end-method;
-
