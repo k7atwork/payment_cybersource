@@ -30,6 +30,7 @@ end-class;
 
 Declare Function SetDocDomainToAuthTokenDomain PeopleCode FUNCLIB_PORTAL.TEMPLATE_FUNC FieldFormula;
 
+Global number &resp_attempt;
 
 /*-----------------------------------------------------------
  Public Method called from 
@@ -52,6 +53,7 @@ method responseProcessor
          %This.setParameterValue("req_transaction_uuid", &transRefID);
          %This.waitBeforeRedirect(5000);
       Else
+         &resp_attempt = 0;
          %This.init();
          %This.waitBeforeRedirect(0);
       End-If;
